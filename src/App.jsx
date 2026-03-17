@@ -23,52 +23,42 @@ const AI_SPEED = { fast: 300, normal: 700, slow: 1200 };
 function PlayingCard({ card, faceDown = false, small = false, style = {} }) {
   const w = small ? 48 : 70;
   const h = small ? 67 : 100;
-  const borderW = small ? 3 : 4;
-  const rankSize = small ? 16 : 24;
-  const suitSize = small ? 14 : 20;
+  const rankSize = small ? 13 : 18;
+  const suitSize = small ? 11 : 15;
+  const pad = small ? 5 : 8;
 
   if (faceDown) {
     return (
       <div style={{
         width: w, height: h, borderRadius: 8, flexShrink: 0,
-        background: '#00A000', padding: borderW,
+        background: 'linear-gradient(135deg,#1a2744 25%,#0f1d3a 25%,#0f1d3a 50%,#1a2744 50%,#1a2744 75%,#0f1d3a 75%)',
+        backgroundSize: '10px 10px',
+        border: '1px solid #2a3f6f',
         boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
         ...style,
-      }}>
-        <div style={{
-          width: '100%', height: '100%', borderRadius: 6,
-          background: 'linear-gradient(135deg,#1a2744 25%,#0f1d3a 25%,#0f1d3a 50%,#1a2744 50%,#1a2744 75%,#0f1d3a 75%)',
-          backgroundSize: '10px 10px',
-        }} />
-      </div>
+      }} />
     );
   }
 
   const red = isRed(card);
-  const color = red ? '#FF0000' : '#000000';
+  const color = red ? '#dc2626' : '#1a1a1a';
   return (
     <div style={{
       width: w, height: h, borderRadius: 8, flexShrink: 0,
-      background: '#00A000', padding: borderW,
-      boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+      background: '#fff', border: '1px solid #e0e0e0',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+      padding: `${pad}px ${pad}px`,
       ...style,
     }}>
-      <div style={{
-        width: '100%', height: '100%', borderRadius: 6,
-        background: '#FFFFFF', position: 'relative',
-        display: 'flex', flexDirection: 'column',
-        padding: small ? '4px 5px' : '6px 8px',
+      <span style={{
+        display: 'block', fontSize: rankSize, fontWeight: 700, color, lineHeight: 1,
+        fontFamily: "'IBM Plex Mono',monospace",
       }}>
-        <span style={{
-          fontSize: rankSize, fontWeight: 800, color, lineHeight: 1,
-          fontFamily: "'IBM Plex Mono',monospace",
-        }}>
-          {card.rank}
-        </span>
-        <span style={{ fontSize: suitSize, color, lineHeight: 1, marginTop: 1 }}>
-          {card.suit}
-        </span>
-      </div>
+        {card.rank}
+      </span>
+      <span style={{ display: 'block', fontSize: suitSize, color, lineHeight: 1, marginTop: 2 }}>
+        {card.suit}
+      </span>
     </div>
   );
 }
