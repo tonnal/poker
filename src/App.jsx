@@ -770,8 +770,7 @@ export default function App() {
                 animate={{ x: 0, y: 0, rotateY: 0, opacity: 1 }}
                 exit={{ y: 50, opacity: 0, scale: 0.8 }}
                 transition={{ type: 'spring', stiffness: 200, damping: 20, delay: i * 0.1 }}
-                whileHover={{ y: -12, scale: 1.08, zIndex: 10 }}
-                style={{ cursor: 'default', marginLeft: i === 0 ? 0 : -42, zIndex: i }}
+                style={{ marginLeft: i === 0 ? 0 : -42, zIndex: i }}
               >
                 <PlayingCard card={card} style={{ width: 80, height: 114 }} />
               </motion.div>
