@@ -52,6 +52,7 @@ function PlayingCard({ card, faceDown = false, small = false, style = {} }) {
       <span style={{
         display: 'block', fontSize: rankSize, fontWeight: 700, color, lineHeight: 1,
         fontFamily: "'IBM Plex Mono',monospace",
+        ...(card.rank === '10' ? { letterSpacing: '-3px' } : {}),
       }}>
         {card.rank}
       </span>
