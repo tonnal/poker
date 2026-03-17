@@ -189,7 +189,8 @@ export default function App() {
   const toCall = currentBet - (humanPlayer?.currentBet || 0);
   const canCheck = toCall <= 0;
   const minRaise = Math.max(BIG_BLIND, currentBet * 2);
-  const maxRaise = humanPlayer.chips + humanPlayer.currentBet;
+  const potLimitMax = pot + currentBet + (currentBet - (humanPlayer?.currentBet || 0)); // pot-limit max
+  const maxRaise = Math.min(humanPlayer.chips + humanPlayer.currentBet, potLimitMax);
   const isHumanTurn = activePlayerIndex === 0 && !processingRef.current &&
     !['waiting', 'dealing', 'showdown'].includes(phase) && !humanPlayer.folded;
 
@@ -236,14 +237,14 @@ export default function App() {
     setPlayers([...ps]);
     addLog(`── Hand #${handNum} ──`);
 
-    // Deal cards
+    // Deal 5 cards (PLO5)
     await delay(300);
     const activeForDeal = ps.filter(p => !p.folded);
-    for (let round = 0; round < 2; round++) {
+    for (let round = 0; round < 5; round++) {
       for (const p of activeForDeal) {
         ps[p.id].holeCards = [...ps[p.id].holeCards, newDeck.pop()];
         setPlayers([...ps]);
-        await delay(100);
+        await delay(80);
       }
     }
 
@@ -571,7 +572,7 @@ export default function App() {
         alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', zIndex: 20,
       }}>
         <h1 style={{ fontFamily: "'Playfair Display',serif", color: '#c9a84c', fontSize: 20, letterSpacing: 3, margin: 0 }}>
-          TEXAS HOLD'EM
+          PLO5
         </h1>
         <div style={{ display: 'flex', gap: 10 }}>
           <HeaderBtn onClick={() => setShowSettings(true)}>Settings</HeaderBtn>
@@ -641,7 +642,7 @@ export default function App() {
           {/* Community cards */}
           <div style={{
             position: 'absolute', left: '50%', top: '36%', transform: 'translate(-50%,-50%)',
-            zIndex: 10, display: 'flex', gap: 8,
+            zIndex: 10, display: 'flex',
           }}>
             <AnimatePresence>
               {communityCards.map((card, i) => (
@@ -651,6 +652,7 @@ export default function App() {
                     ? { scale: 1, rotateY: 0, opacity: 1 }
                     : { scale: 0.8, rotateY: 180, opacity: 0.5 }}
                   transition={{ type: 'spring', stiffness: 260, damping: 20, delay: i < 3 ? i * 0.1 : 0 }}
+                  style={{ marginLeft: i === 0 ? 0 : -12, zIndex: i }}
                 >
                   <PlayingCard card={card} faceDown={i >= revealedCommunity} />
                 </motion.div>
@@ -712,17 +714,22 @@ export default function App() {
                     <ChipCount amount={player.chips} className="" />
 
                     {/* AI hole cards */}
-                    {!player.isHuman && player.holeCards.length === 2 && !player.folded && (
-                      <div style={{ display: 'flex', gap: 3, marginTop: 4 }}>
+                    {!player.isHuman && player.holeCards.length > 0 && !player.folded && (
+                      <div style={{ display: 'flex', marginTop: 4, marginLeft: 8 }}>
                         {phase === 'showdown' ? (
-                          player.holeCards.map(c => (
+                          player.holeCards.map((c, ci) => (
                             <motion.div key={cardKey(c)} initial={{ rotateY: 180 }} animate={{ rotateY: 0 }}
-                              transition={{ type: 'spring', stiffness: 200, damping: 20 }}>
+                              transition={{ type: 'spring', stiffness: 200, damping: 20 }}
+                              style={{ marginLeft: ci === 0 ? 0 : -20, zIndex: ci }}>
                               <PlayingCard card={c} small />
                             </motion.div>
                           ))
                         ) : (
-                          <><PlayingCard faceDown small /><PlayingCard faceDown small /></>
+                          player.holeCards.map((_, ci) => (
+                            <div key={ci} style={{ marginLeft: ci === 0 ? 0 : -20, zIndex: ci }}>
+                              <PlayingCard faceDown small />
+                            </div>
+                          ))
                         )}
                       </div>
                     )}
@@ -749,7 +756,7 @@ export default function App() {
       {/* ── Human hole cards ── */}
       <div style={{
         position: 'absolute', bottom: 130, left: '50%', transform: 'translateX(-50%)',
-        zIndex: 20, display: 'flex', gap: 12,
+        zIndex: 20, display: 'flex',
       }}>
         <AnimatePresence>
           {humanPlayer.holeCards.map((card, i) => (
@@ -757,9 +764,9 @@ export default function App() {
               initial={{ x: 0, y: -200, rotateY: 180, opacity: 0 }}
               animate={{ x: 0, y: 0, rotateY: 0, opacity: 1 }}
               exit={{ y: 50, opacity: 0, scale: 0.8 }}
-              transition={{ type: 'spring', stiffness: 200, damping: 20, delay: i * 0.15 }}
-              whileHover={{ y: -8, scale: 1.05 }}
-              style={{ cursor: 'default' }}
+              transition={{ type: 'spring', stiffness: 200, damping: 20, delay: i * 0.1 }}
+              whileHover={{ y: -8, scale: 1.05, zIndex: 10 }}
+              style={{ cursor: 'default', marginLeft: i === 0 ? 0 : -28, zIndex: i }}
             >
               <PlayingCard card={card} style={{ width: 72, height: 104 }} />
             </motion.div>
@@ -876,9 +883,9 @@ export default function App() {
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
             style={{ textAlign: 'center' }}>
             <h1 style={{ fontFamily: "'Playfair Display',serif", color: '#c9a84c', fontSize: 48, letterSpacing: 4, margin: '0 0 8px' }}>
-              TEXAS HOLD'EM
+              PLO5
             </h1>
-            <p style={{ color: '#666', fontSize: 14, marginBottom: 32 }}>Premium Poker Experience</p>
+            <p style={{ color: '#666', fontSize: 14, marginBottom: 32 }}>Pot Limit Omaha 5</p>
             <button onClick={startNewHand}
               style={{
                 padding: '14px 40px', borderRadius: 14, fontSize: 18, fontWeight: 700, cursor: 'pointer',

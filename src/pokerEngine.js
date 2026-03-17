@@ -139,15 +139,19 @@ function evaluateFiveCards(cards) {
 }
 
 export function evaluateHand(holeCards, communityCards) {
-  const allCards = [...holeCards, ...communityCards];
-  const combos = getCombinations(allCards, 5);
+  // PLO rules: must use exactly 2 hole cards + exactly 3 community cards
+  const holeCombos = getCombinations(holeCards, 2);
+  const commCombos = getCombinations(communityCards, 3);
   let best = null;
   let bestCards = null;
-  for (const combo of combos) {
-    const result = evaluateFiveCards(combo);
-    if (!best || compareHands(result, best) > 0) {
-      best = result;
-      bestCards = combo;
+  for (const hc of holeCombos) {
+    for (const cc of commCombos) {
+      const combo = [...hc, ...cc];
+      const result = evaluateFiveCards(combo);
+      if (!best || compareHands(result, best) > 0) {
+        best = result;
+        bestCards = combo;
+      }
     }
   }
   return { ...best, bestCards };
@@ -178,21 +182,27 @@ export function estimateHandStrength(holeCards, communityCards) {
 }
 
 function estimatePreFlopStrength(holeCards) {
-  const [c1, c2] = holeCards;
-  const highVal = Math.max(c1.value, c2.value);
-  const lowVal = Math.min(c1.value, c2.value);
-  const suited = c1.suit === c2.suit;
-  const isPair = c1.value === c2.value;
+  // PLO5: evaluate all 2-card combos from the 5 hole cards
+  const combos = getCombinations(holeCards, 2);
+  let bestStrength = 0;
+  for (const [c1, c2] of combos) {
+    const highVal = Math.max(c1.value, c2.value);
+    const lowVal = Math.min(c1.value, c2.value);
+    const suited = c1.suit === c2.suit;
+    const isPair = c1.value === c2.value;
 
-  let strength = 0;
-  if (isPair) {
-    strength = 0.5 + (highVal / 14) * 0.45; // Pairs: 0.5-0.95
-  } else {
-    strength = (highVal + lowVal) / 28 * 0.6; // ~0.1-0.6
-    if (suited) strength += 0.06;
-    if (highVal - lowVal <= 2) strength += 0.04; // Connectors
+    let strength = 0;
+    if (isPair) {
+      strength = 0.5 + (highVal / 14) * 0.45;
+    } else {
+      strength = (highVal + lowVal) / 28 * 0.6;
+      if (suited) strength += 0.06;
+      if (highVal - lowVal <= 2) strength += 0.04;
+    }
+    if (strength > bestStrength) bestStrength = strength;
   }
-  return Math.min(1, Math.max(0.05, strength));
+  // PLO hands are stronger on average, so scale down slightly
+  return Math.min(1, Math.max(0.05, bestStrength * 0.9));
 }
 
 // ============================================================
@@ -215,13 +225,13 @@ export function makeAIDecision(player, gameState, personality) {
 
   if (chips <= 0) return { action: 'check', amount: 0 };
 
+  // Pot-limit max raise: pot + call amount + current pot
+  const potLimitMax = pot + currentBet + toCall;
+
   const handStrength = estimateHandStrength(holeCards, communityCards);
 
   // Pot odds calculation
   const potOdds = toCall > 0 ? toCall / (pot + toCall) : 0;
-
-  // Position bonus (later position = better)
-  const posBonus = 0; // simplified
 
   // Bluff roll
   const isBluffing = Math.random() < personality.bluffRate;
@@ -229,7 +239,6 @@ export function makeAIDecision(player, gameState, personality) {
 
   // Decision thresholds adjusted by personality aggression
   const foldThreshold = 0.25 - personality.aggression * 0.1;
-  const callThreshold = 0.5 - personality.aggression * 0.15;
   const raiseThreshold = 0.6 - personality.aggression * 0.15;
 
   // Must call or fold
@@ -243,12 +252,9 @@ export function makeAIDecision(player, gameState, personality) {
     if (effectiveStrength >= raiseThreshold && chips > toCall * 2) {
       const raiseAmount = Math.min(
         chips,
+        potLimitMax, // pot-limit cap
         Math.max(currentBet * 2, Math.floor(pot * effectiveStrength * personality.aggression))
       );
-      // Sometimes go all in with very strong hands
-      if (effectiveStrength > 0.85 && Math.random() < 0.3) {
-        return { action: 'raise', amount: chips };
-      }
       return { action: 'raise', amount: Math.min(chips, raiseAmount) };
     }
     return { action: 'call', amount: Math.min(chips, toCall) };
@@ -256,14 +262,12 @@ export function makeAIDecision(player, gameState, personality) {
 
   // Can check or bet
   if (effectiveStrength >= raiseThreshold) {
-    const betAmount = Math.max(
-      gameState.bigBlind,
-      Math.floor(pot * effectiveStrength * personality.aggression * 0.5)
+    const betAmount = Math.min(
+      chips,
+      potLimitMax, // pot-limit cap
+      Math.max(gameState.bigBlind, Math.floor(pot * effectiveStrength * personality.aggression * 0.5))
     );
-    if (effectiveStrength > 0.85 && Math.random() < 0.2) {
-      return { action: 'raise', amount: chips }; // All in
-    }
-    return { action: 'raise', amount: Math.min(chips, betAmount) };
+    return { action: 'raise', amount: betAmount };
   }
 
   return { action: 'check', amount: 0 };
