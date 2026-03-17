@@ -2,7 +2,8 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { io } from 'socket.io-client';
 
-const SERVER_URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:3001';
+// In production, connect to same origin. In dev, connect to local server.
+const SERVER_URL = import.meta.env.DEV ? 'http://localhost:3001' : window.location.origin;
 
 const SEAT_POSITIONS_MAP = {
   2: [{ x: 50, y: 88 }, { x: 50, y: 6 }],

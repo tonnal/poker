@@ -2,12 +2,19 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import {
   createDeck, shuffle, evaluateESGShowdown, calculatePotLimitMax, HAND_NAMES, compareHands,
 } from './esgEngine.js';
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 app.use(cors());
+
+// Serve frontend static files
+app.use(express.static(path.join(__dirname, '../dist')));
+
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: { origin: '*', methods: ['GET', 'POST'] },
@@ -548,7 +555,12 @@ io.on('connection', (socket) => {
 });
 
 // Health check
-app.get('/', (req, res) => res.json({ status: 'ESG Poker Server running' }));
+app.get('/api/health', (req, res) => res.json({ status: 'ESG Poker Server running' }));
+
+// SPA fallback — serve index.html for all non-API routes
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../dist/index.html'));
+});
 
 const PORT = process.env.PORT || 3001;
 httpServer.listen(PORT, () => {
