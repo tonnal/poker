@@ -469,7 +469,7 @@ export default function App() {
       setCardsVisible(false);
       addLog('── Showdown ──');
 
-      const results = evaluateESGShowdown(nonFolded, topBoard.length ? topBoard : [], bottomBoard.length ? bottomBoard : []);
+      const results = evaluateESGShowdown(nonFolded, topBoardCards, bottomBoardCards);
 
       const maxPoints = Math.max(...results.map(r => r.totalPoints));
       const winners = results.filter(r => r.totalPoints === maxPoints);
