@@ -968,15 +968,15 @@ export default function App() {
                     <ChipCount amount={player.chips} />
 
                     {!player.folded && player.holeCards.length > 0 && phase === 'showdown' && (
-                      <div style={{ display: 'flex', marginTop: 4 }}>
+                      <div style={{ display: 'flex', marginTop: 6, position: 'relative', zIndex: 20 }}>
                         {player.holeCards.map((c, ci) => (
                           <motion.div key={cardKey(c)}
-                            initial={{ rotateY: 180, opacity: 0 }}
-                            animate={{ rotateY: 0, opacity: 1 }}
-                            transition={{ type: 'spring', stiffness: 200, damping: 20, delay: ci * 0.03 }}
-                            style={{ marginLeft: ci === 0 ? 0 : -28, zIndex: ci }}
+                            initial={{ y: 10, opacity: 0 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            transition={{ type: 'spring', stiffness: 200, damping: 20, delay: ci * 0.04 }}
+                            style={{ marginLeft: ci === 0 ? 0 : -30, zIndex: ci }}
                           >
-                            <PlayingCard card={c} small style={{ width: 36, height: 50 }} />
+                            <PlayingCard card={c} small />
                           </motion.div>
                         ))}
                       </div>
