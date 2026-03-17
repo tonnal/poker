@@ -23,8 +23,8 @@ const AI_SPEED = { fast: 300, normal: 700, slow: 1200 };
 function PlayingCard({ card, faceDown = false, small = false, style = {} }) {
   const w = small ? 48 : 70;
   const h = small ? 67 : 100;
-  const rankSize = small ? 13 : 18;
-  const suitSize = small ? 11 : 15;
+  const rankSize = small ? 15 : 20;
+  const suitSize = small ? 11 : 14;
   const pad = small ? 5 : 8;
 
   if (faceDown) {
@@ -56,7 +56,7 @@ function PlayingCard({ card, faceDown = false, small = false, style = {} }) {
       }}>
         {card.rank}
       </span>
-      <span style={{ display: 'block', fontSize: suitSize, color, lineHeight: 1, marginTop: 2 }}>
+      <span style={{ display: 'block', fontSize: suitSize, fontWeight: 700, color, lineHeight: 1, marginTop: 2 }}>
         {card.suit}
       </span>
     </div>
@@ -648,7 +648,7 @@ export default function App() {
           {/* Community cards */}
           <div style={{
             position: 'absolute', left: '50%', top: '36%', transform: 'translate(-50%,-50%)',
-            zIndex: 10, display: 'flex', gap: 6,
+            zIndex: 10, display: 'flex', gap: 8,
           }}>
             <AnimatePresence>
               {communityCards.map((card, i) => (
