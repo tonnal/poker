@@ -722,27 +722,19 @@ export default function App() {
                     {!player.isHuman && player.holeCards.length > 0 && !player.folded && (
                       <div style={{ display: 'flex', alignItems: 'flex-end', marginTop: 4 }}>
                         {phase === 'showdown' ? (
-                          player.holeCards.map((c, ci) => {
-                            const mid = (player.holeCards.length - 1) / 2;
-                            const tilt = (ci - mid) * 2.5;
-                            return (
-                              <motion.div key={cardKey(c)} initial={{ rotateY: 180 }} animate={{ rotateY: 0, rotate: tilt }}
+                          player.holeCards.map((c, ci) => (
+                              <motion.div key={cardKey(c)} initial={{ rotateY: 180 }} animate={{ rotateY: 0 }}
                                 transition={{ type: 'spring', stiffness: 200, damping: 20 }}
                                 style={{ marginLeft: ci === 0 ? 0 : -28, zIndex: ci }}>
                                 <PlayingCard card={c} small />
                               </motion.div>
-                            );
-                          })
+                          ))
                         ) : (
-                          player.holeCards.map((_, ci) => {
-                            const mid = (player.holeCards.length - 1) / 2;
-                            const tilt = (ci - mid) * 2.5;
-                            return (
-                              <div key={ci} style={{ marginLeft: ci === 0 ? 0 : -28, zIndex: ci, transform: `rotate(${tilt}deg)` }}>
+                          player.holeCards.map((_, ci) => (
+                              <div key={ci} style={{ marginLeft: ci === 0 ? 0 : -28, zIndex: ci }}>
                                 <PlayingCard faceDown small />
                               </div>
-                            );
-                          })
+                          ))
                         )}
                       </div>
                     )}
@@ -772,14 +764,10 @@ export default function App() {
         zIndex: 20, display: 'flex', alignItems: 'flex-end',
       }}>
         <AnimatePresence>
-          {humanPlayer.holeCards.map((card, i) => {
-            const count = humanPlayer.holeCards.length;
-            const mid = (count - 1) / 2;
-            const tilt = (i - mid) * 3; // slight tilt per card
-            return (
+          {humanPlayer.holeCards.map((card, i) => (
               <motion.div key={cardKey(card)}
                 initial={{ x: 0, y: -200, rotateY: 180, opacity: 0 }}
-                animate={{ x: 0, y: 0, rotateY: 0, opacity: 1, rotate: tilt }}
+                animate={{ x: 0, y: 0, rotateY: 0, opacity: 1 }}
                 exit={{ y: 50, opacity: 0, scale: 0.8 }}
                 transition={{ type: 'spring', stiffness: 200, damping: 20, delay: i * 0.1 }}
                 whileHover={{ y: -12, scale: 1.08, zIndex: 10 }}
@@ -787,8 +775,7 @@ export default function App() {
               >
                 <PlayingCard card={card} style={{ width: 80, height: 114 }} />
               </motion.div>
-            );
-          })}
+          ))}
         </AnimatePresence>
       </div>
 
