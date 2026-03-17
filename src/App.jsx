@@ -497,9 +497,11 @@ export default function App() {
                     )}
                     {isWinner && <span style={{ fontSize: 10, color: '#fbbf24' }}>WIN</span>}
                   </div>
-                  <div style={{ display: 'flex', gap: 3 }}>
+                  <div style={{ display: 'flex' }}>
                     {player.holeCards.map((c, ci) => (
-                      <PlayingCard key={cardKey(c)} card={c} small style={{ width: 36, height: 50 }} />
+                      <div key={cardKey(c)} style={{ marginLeft: ci === 0 ? 0 : -24, zIndex: ci }}>
+                        <PlayingCard card={c} small style={{ width: 36, height: 50 }} />
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -527,9 +529,11 @@ export default function App() {
               <span style={{ fontSize: 12, color: '#c9a84c', fontWeight: 700 }}>{myPlayer.name}</span>
               <span style={{ fontSize: 12, color: '#c9a84c', marginLeft: 'auto' }}>${myPlayer.chips}</span>
             </div>
-            <div style={{ display: 'flex', gap: 3, overflowX: 'auto', paddingBottom: 4 }}>
+            <div style={{ display: 'flex', overflowX: 'auto', paddingBottom: 4 }}>
               {myPlayer.holeCards.map((card, i) => (
-                <PlayingCard key={cardKey(card)} card={card} small style={{ width: 44, height: 62, flexShrink: 0 }} />
+                <div key={cardKey(card)} style={{ marginLeft: i === 0 ? 0 : -28, flexShrink: 0, zIndex: i }}>
+                  <PlayingCard card={card} small style={{ width: 44, height: 62 }} />
+                </div>
               ))}
             </div>
           </div>
