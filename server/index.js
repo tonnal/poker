@@ -474,19 +474,27 @@ io.on('connection', (socket) => {
   socket.on('join-room', ({ code, name }) => {
     const room = rooms.get(code.toUpperCase());
     if (!room) return socket.emit('error-msg', { message: 'Room not found' });
-    if (room.state !== 'lobby') return socket.emit('error-msg', { message: 'Game already in progress' });
     if (room.players.length >= 7) return socket.emit('error-msg', { message: 'Room is full' });
 
     const id = room.players.length;
+    const isGameInProgress = room.state !== 'lobby';
     room.players.push({
       id, socketId: socket.id, name, emoji: EMOJIS[id % EMOJIS.length],
-      chips: 500, folded: false, currentBet: 0, holeCards: [], isAllIn: false,
+      chips: 500, folded: isGameInProgress, currentBet: 0, holeCards: [], isAllIn: false,
     });
     currentRoom = room.code;
     socket.join(room.code);
-    socket.emit('room-joined', { code: room.code });
-    broadcastLobby(room);
-    console.log(`${name} joined room ${room.code}`);
+
+    if (isGameInProgress) {
+      // Mid-game join: go straight to game screen, sit out current hand
+      socket.emit('room-joined', { code: room.code });
+      addLog(room, `${name} joined the table (next hand)`);
+      broadcastState(room);
+    } else {
+      socket.emit('room-joined', { code: room.code });
+      broadcastLobby(room);
+    }
+    console.log(`${name} joined room ${room.code}${isGameInProgress ? ' (mid-game)' : ''}`);
   });
 
   socket.on('start-game', () => {
