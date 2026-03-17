@@ -21,38 +21,54 @@ const AI_SPEED = { fast: 300, normal: 700, slow: 1200 };
 
 /* ─── Playing Card ─── */
 function PlayingCard({ card, faceDown = false, small = false, style = {} }) {
-  const w = small ? 40 : 56;
-  const h = small ? 56 : 80;
-  const textSize = small ? 11 : 14;
+  const w = small ? 48 : 70;
+  const h = small ? 67 : 100;
+  const borderW = small ? 3 : 4;
+  const rankSize = small ? 16 : 24;
+  const suitSize = small ? 14 : 20;
 
   if (faceDown) {
     return (
       <div style={{
         width: w, height: h, borderRadius: 8, flexShrink: 0,
-        background: 'linear-gradient(135deg,#1a2744 25%,#0f1d3a 25%,#0f1d3a 50%,#1a2744 50%,#1a2744 75%,#0f1d3a 75%)',
-        backgroundSize: '10px 10px',
-        border: '2px solid #2a3f6f',
+        background: '#00A000', padding: borderW,
         boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
         ...style,
-      }} />
+      }}>
+        <div style={{
+          width: '100%', height: '100%', borderRadius: 6,
+          background: 'linear-gradient(135deg,#1a2744 25%,#0f1d3a 25%,#0f1d3a 50%,#1a2744 50%,#1a2744 75%,#0f1d3a 75%)',
+          backgroundSize: '10px 10px',
+        }} />
+      </div>
     );
   }
 
   const red = isRed(card);
+  const color = red ? '#FF0000' : '#000000';
   return (
     <div style={{
       width: w, height: h, borderRadius: 8, flexShrink: 0,
-      background: '#fff', border: '1px solid #d4d4d4',
-      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      background: '#00A000', padding: borderW,
       boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
       ...style,
     }}>
-      <span style={{ fontSize: textSize, fontWeight: 700, color: red ? '#dc2626' : '#1a1a1a', lineHeight: 1 }}>
-        {card.rank}
-      </span>
-      <span style={{ fontSize: small ? 14 : 20, color: red ? '#dc2626' : '#1a1a1a' }}>
-        {card.suit}
-      </span>
+      <div style={{
+        width: '100%', height: '100%', borderRadius: 6,
+        background: '#FFFFFF', position: 'relative',
+        display: 'flex', flexDirection: 'column',
+        padding: small ? '4px 5px' : '6px 8px',
+      }}>
+        <span style={{
+          fontSize: rankSize, fontWeight: 800, color, lineHeight: 1,
+          fontFamily: "'IBM Plex Mono',monospace",
+        }}>
+          {card.rank}
+        </span>
+        <span style={{ fontSize: suitSize, color, lineHeight: 1, marginTop: 1 }}>
+          {card.suit}
+        </span>
+      </div>
     </div>
   );
 }
@@ -642,7 +658,7 @@ export default function App() {
           {/* Community cards */}
           <div style={{
             position: 'absolute', left: '50%', top: '36%', transform: 'translate(-50%,-50%)',
-            zIndex: 10, display: 'flex',
+            zIndex: 10, display: 'flex', gap: 6,
           }}>
             <AnimatePresence>
               {communityCards.map((card, i) => (
@@ -652,7 +668,6 @@ export default function App() {
                     ? { scale: 1, rotateY: 0, opacity: 1 }
                     : { scale: 0.8, rotateY: 180, opacity: 0.5 }}
                   transition={{ type: 'spring', stiffness: 260, damping: 20, delay: i < 3 ? i * 0.1 : 0 }}
-                  style={{ marginLeft: i === 0 ? 0 : -12, zIndex: i }}
                 >
                   <PlayingCard card={card} faceDown={i >= revealedCommunity} />
                 </motion.div>
@@ -715,21 +730,29 @@ export default function App() {
 
                     {/* AI hole cards */}
                     {!player.isHuman && player.holeCards.length > 0 && !player.folded && (
-                      <div style={{ display: 'flex', marginTop: 4, marginLeft: 8 }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-end', marginTop: 4 }}>
                         {phase === 'showdown' ? (
-                          player.holeCards.map((c, ci) => (
-                            <motion.div key={cardKey(c)} initial={{ rotateY: 180 }} animate={{ rotateY: 0 }}
-                              transition={{ type: 'spring', stiffness: 200, damping: 20 }}
-                              style={{ marginLeft: ci === 0 ? 0 : -20, zIndex: ci }}>
-                              <PlayingCard card={c} small />
-                            </motion.div>
-                          ))
+                          player.holeCards.map((c, ci) => {
+                            const mid = (player.holeCards.length - 1) / 2;
+                            const tilt = (ci - mid) * 2.5;
+                            return (
+                              <motion.div key={cardKey(c)} initial={{ rotateY: 180 }} animate={{ rotateY: 0, rotate: tilt }}
+                                transition={{ type: 'spring', stiffness: 200, damping: 20 }}
+                                style={{ marginLeft: ci === 0 ? 0 : -28, zIndex: ci }}>
+                                <PlayingCard card={c} small />
+                              </motion.div>
+                            );
+                          })
                         ) : (
-                          player.holeCards.map((_, ci) => (
-                            <div key={ci} style={{ marginLeft: ci === 0 ? 0 : -20, zIndex: ci }}>
-                              <PlayingCard faceDown small />
-                            </div>
-                          ))
+                          player.holeCards.map((_, ci) => {
+                            const mid = (player.holeCards.length - 1) / 2;
+                            const tilt = (ci - mid) * 2.5;
+                            return (
+                              <div key={ci} style={{ marginLeft: ci === 0 ? 0 : -28, zIndex: ci, transform: `rotate(${tilt}deg)` }}>
+                                <PlayingCard faceDown small />
+                              </div>
+                            );
+                          })
                         )}
                       </div>
                     )}
@@ -755,22 +778,27 @@ export default function App() {
 
       {/* ── Human hole cards ── */}
       <div style={{
-        position: 'absolute', bottom: 130, left: '50%', transform: 'translateX(-50%)',
-        zIndex: 20, display: 'flex',
+        position: 'absolute', bottom: 120, left: '50%', transform: 'translateX(-50%)',
+        zIndex: 20, display: 'flex', alignItems: 'flex-end',
       }}>
         <AnimatePresence>
-          {humanPlayer.holeCards.map((card, i) => (
-            <motion.div key={cardKey(card)}
-              initial={{ x: 0, y: -200, rotateY: 180, opacity: 0 }}
-              animate={{ x: 0, y: 0, rotateY: 0, opacity: 1 }}
-              exit={{ y: 50, opacity: 0, scale: 0.8 }}
-              transition={{ type: 'spring', stiffness: 200, damping: 20, delay: i * 0.1 }}
-              whileHover={{ y: -8, scale: 1.05, zIndex: 10 }}
-              style={{ cursor: 'default', marginLeft: i === 0 ? 0 : -28, zIndex: i }}
-            >
-              <PlayingCard card={card} style={{ width: 72, height: 104 }} />
-            </motion.div>
-          ))}
+          {humanPlayer.holeCards.map((card, i) => {
+            const count = humanPlayer.holeCards.length;
+            const mid = (count - 1) / 2;
+            const tilt = (i - mid) * 3; // slight tilt per card
+            return (
+              <motion.div key={cardKey(card)}
+                initial={{ x: 0, y: -200, rotateY: 180, opacity: 0 }}
+                animate={{ x: 0, y: 0, rotateY: 0, opacity: 1, rotate: tilt }}
+                exit={{ y: 50, opacity: 0, scale: 0.8 }}
+                transition={{ type: 'spring', stiffness: 200, damping: 20, delay: i * 0.1 }}
+                whileHover={{ y: -12, scale: 1.08, zIndex: 10 }}
+                style={{ cursor: 'default', marginLeft: i === 0 ? 0 : -42, zIndex: i }}
+              >
+                <PlayingCard card={card} style={{ width: 80, height: 114 }} />
+              </motion.div>
+            );
+          })}
         </AnimatePresence>
       </div>
 
