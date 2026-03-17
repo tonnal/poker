@@ -5,6 +5,16 @@ import { io } from 'socket.io-client';
 // In production, connect to same origin. In dev, connect to local server.
 const SERVER_URL = import.meta.env.DEV ? 'http://localhost:3001' : window.location.origin;
 
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, []);
+  return isMobile;
+}
+
 const SEAT_POSITIONS_MAP = {
   2: [{ x: 50, y: 88 }, { x: 50, y: 6 }],
   3: [{ x: 50, y: 88 }, { x: 15, y: 30 }, { x: 85, y: 30 }],
@@ -154,6 +164,7 @@ export default function App() {
   const [raiseAmount, setRaiseAmount] = useState(6);
 
   const logRef = useRef(null);
+  const isMobile = useIsMobile();
 
   // Connect socket
   useEffect(() => {
@@ -364,6 +375,214 @@ export default function App() {
   const maxRaise = Math.min((myPlayer?.chips || 0) + (myPlayer?.currentBet || 0), potLimitMax);
 
   const showConfetti = gs.winnerIds.includes(myId) && gs.phase === 'showdown';
+
+  // ═══════════════════════════════════════
+  // MOBILE GAME LAYOUT
+  // ═══════════════════════════════════════
+  if (isMobile) {
+    const others = reordered.filter(p => p.id !== myId);
+    return (
+      <div style={{
+        width: '100vw', height: '100vh', overflow: 'auto',
+        background: '#0d0d0d', fontFamily: "'IBM Plex Mono',monospace",
+        display: 'flex', flexDirection: 'column', userSelect: 'none',
+      }}>
+        <Confetti active={showConfetti} />
+
+        {/* Header */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '10px 16px', flexShrink: 0,
+        }}>
+          <span style={{ fontFamily: "'Playfair Display',serif", color: '#c9a84c', fontSize: 16, letterSpacing: 2 }}>
+            ESG
+          </span>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            {['pre-flop', 'flop', 'turn', 'river', 'showdown'].map(p => (
+              <span key={p} style={{
+                fontSize: 8, textTransform: 'uppercase', letterSpacing: 1, padding: '2px 5px',
+                borderRadius: 10, color: gs.phase === p ? '#fbbf24' : '#444',
+                background: gs.phase === p ? 'rgba(201,168,76,0.12)' : 'transparent',
+              }}>{p === 'pre-flop' ? 'PRE' : p === 'showdown' ? 'SD' : p.toUpperCase()}</span>
+            ))}
+          </div>
+          <span style={{ color: '#555', fontSize: 10 }}>{roomCode}</span>
+        </div>
+
+        {/* Other players - horizontal scroll */}
+        <div style={{
+          display: 'flex', gap: 8, padding: '4px 16px', overflowX: 'auto', flexShrink: 0,
+        }}>
+          {others.map(player => {
+            const isActive = gs.activePlayerIndex >= 0 && gs.players[gs.activePlayerIndex]?.id === player.id;
+            const isWinner = gs.winnerIds.includes(player.id);
+            const isFolded = player.folded;
+            const action = gs.playerActions[gs.players.findIndex(p => p.id === player.id)];
+
+            return (
+              <div key={player.id} style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center',
+                padding: '6px 10px', borderRadius: 10, flexShrink: 0, minWidth: 60,
+                background: isActive ? 'rgba(201,168,76,0.1)' : 'rgba(30,30,30,0.8)',
+                border: isActive ? '1px solid #c9a84c' : '1px solid transparent',
+                opacity: isFolded ? 0.35 : 1,
+              }}>
+                <span style={{ fontSize: 18 }}>{player.emoji}</span>
+                <span style={{ fontSize: 9, color: '#bbb', marginBottom: 2 }}>{player.name}</span>
+                <span style={{ fontSize: 10, color: '#c9a84c', fontWeight: 700 }}>${player.chips}</span>
+                {action && (
+                  <span style={{
+                    fontSize: 8, padding: '1px 5px', borderRadius: 8, marginTop: 2,
+                    background: action.action === 'fold' ? '#7f1d1d' : action.action === 'raise' ? '#713f12' : '#14532d',
+                    color: action.action === 'fold' ? '#fca5a5' : action.action === 'raise' ? '#fde68a' : '#86efac',
+                  }}>{action.action === 'raise' ? `R $${action.amount}` : action.action.toUpperCase()}</span>
+                )}
+                {isWinner && <span style={{ fontSize: 9, color: '#fbbf24', marginTop: 2 }}>WIN</span>}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Pot */}
+        {gs.pot > 0 && (
+          <div style={{ textAlign: 'center', padding: '6px 0', flexShrink: 0 }}>
+            <span style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 2, color: '#888' }}>Pot </span>
+            <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontWeight: 700, color: '#c9a84c', fontSize: 16 }}>
+              ${gs.pot}
+            </span>
+          </div>
+        )}
+
+        {/* Boards */}
+        <div style={{ padding: '4px 16px', flexShrink: 0 }}>
+          {/* Top Board */}
+          <div style={{ marginBottom: 8 }}>
+            <span style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: 2, color: '#888' }}>Top Board</span>
+            <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+              {gs.topBoard.map((card, i) => (
+                <PlayingCard key={`t${i}`} card={card} faceDown={i >= gs.topRevealed} small
+                  style={{ width: 40, height: 56 }} />
+              ))}
+            </div>
+          </div>
+          {/* Bottom Board */}
+          <div>
+            <span style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: 2, color: '#888' }}>Bottom Board</span>
+            <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+              {gs.bottomBoard.map((card, i) => (
+                <PlayingCard key={`b${i}`} card={card} faceDown={i >= gs.bottomRevealed} small
+                  style={{ width: 40, height: 56 }} />
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Showdown: all players' cards */}
+        {gs.phase === 'showdown' && (
+          <div style={{ padding: '8px 16px', flexShrink: 0 }}>
+            {reordered.filter(p => !p.folded && p.holeCards?.length > 0).map(player => {
+              const sdResult = gs.showdownResults?.find(r => r.playerId === player.id);
+              const isWinner = gs.winnerIds.includes(player.id);
+              return (
+                <div key={player.id} style={{ marginBottom: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                    <span style={{ fontSize: 14 }}>{player.emoji}</span>
+                    <span style={{ fontSize: 11, color: isWinner ? '#fbbf24' : '#bbb', fontWeight: isWinner ? 700 : 400 }}>
+                      {player.name}{player.id === myId ? ' (you)' : ''}
+                    </span>
+                    {sdResult && (
+                      <span style={{ fontSize: 10, color: isWinner ? '#fbbf24' : '#888', marginLeft: 'auto' }}>
+                        {sdResult.totalPoints.toFixed(1)} pts
+                      </span>
+                    )}
+                    {isWinner && <span style={{ fontSize: 10, color: '#fbbf24' }}>WIN</span>}
+                  </div>
+                  <div style={{ display: 'flex', gap: 3 }}>
+                    {player.holeCards.map((c, ci) => (
+                      <PlayingCard key={cardKey(c)} card={c} small style={{ width: 36, height: 50 }} />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+            <button onClick={nextHand}
+              style={{
+                width: '100%', padding: '12px', borderRadius: 12, fontSize: 15, fontWeight: 700,
+                cursor: 'pointer', marginTop: 8,
+                background: 'linear-gradient(135deg,#c9a84c,#9a7b2e)', color: '#0d0d0d',
+                border: 'none', fontFamily: "'Playfair Display',serif", letterSpacing: 2,
+              }}
+            >NEXT HAND</button>
+          </div>
+        )}
+
+        {/* Spacer */}
+        <div style={{ flex: 1, minHeight: 8 }} />
+
+        {/* My cards + info */}
+        {myPlayer && myPlayer.holeCards?.length > 0 && gs.phase !== 'showdown' && (
+          <div style={{ padding: '8px 16px', flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <span style={{ fontSize: 18 }}>{myPlayer.emoji}</span>
+              <span style={{ fontSize: 12, color: '#c9a84c', fontWeight: 700 }}>{myPlayer.name}</span>
+              <span style={{ fontSize: 12, color: '#c9a84c', marginLeft: 'auto' }}>${myPlayer.chips}</span>
+            </div>
+            <div style={{ display: 'flex', gap: 3, overflowX: 'auto', paddingBottom: 4 }}>
+              {myPlayer.holeCards.map((card, i) => (
+                <PlayingCard key={cardKey(card)} card={card} small style={{ width: 44, height: 62, flexShrink: 0 }} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Action bar */}
+        {isMyTurn && gs.phase !== 'showdown' && (
+          <div style={{
+            padding: '10px 16px', flexShrink: 0, borderTop: '1px solid #222',
+            background: 'rgba(13,13,13,0.95)',
+          }}>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+              <MobileActionBtn onClick={() => sendAction('fold')} bg="#7f1d1d" color="#fca5a5" label="FOLD" />
+              {canCheck ? (
+                <MobileActionBtn onClick={() => sendAction('check')} bg="#14532d" color="#86efac" label="CHECK" />
+              ) : (
+                <MobileActionBtn onClick={() => sendAction('call')} bg="#1e3a5f" color="#93c5fd" label={`CALL $${toCall}`} />
+              )}
+              <MobileActionBtn onClick={() => sendAction('raise', (myPlayer?.chips || 0) + (myPlayer?.currentBet || 0))}
+                bg="#581c87" color="#d8b4fe" label="ALL IN" />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <input type="range" min={minRaise} max={maxRaise} value={Math.min(raiseAmount, maxRaise)}
+                onChange={e => setRaiseAmount(Number(e.target.value))}
+                style={{ flex: 1 }} />
+              <MobileActionBtn onClick={() => sendAction('raise', raiseAmount)} bg="#713f12" color="#fde68a"
+                label={`RAISE $${raiseAmount}`} />
+            </div>
+          </div>
+        )}
+
+        {/* Waiting indicator */}
+        {!isMyTurn && gs.phase !== 'showdown' && gs.phase !== 'waiting' && gs.phase !== 'dealing' && (
+          <div style={{
+            padding: '12px 16px', textAlign: 'center', flexShrink: 0,
+            color: '#888', fontSize: 12, borderTop: '1px solid #222',
+          }}>
+            Waiting for {gs.activePlayerIndex >= 0 ? gs.players[gs.activePlayerIndex]?.name : '...'}
+          </div>
+        )}
+
+        {/* Info */}
+        <div style={{ padding: '6px 16px', flexShrink: 0, fontSize: 9, color: '#444', textAlign: 'center' }}>
+          Blinds: $1/$3 · Hand #{gs.handNumber} · Deck: {gs.deckCount}
+          {gs.owedCards > 0 && ` · Owed: ${gs.owedCards}`}
+        </div>
+      </div>
+    );
+  }
+
+  // ═══════════════════════════════════════
+  // DESKTOP GAME LAYOUT
+  // ═══════════════════════════════════════
 
   return (
     <div style={{
@@ -664,6 +883,20 @@ function ActionBtn({ onClick, bg, color, label, shortcut }) {
     >
       {label}
       {shortcut && <span style={{ fontSize: 9, opacity: 0.6, marginLeft: 4 }}>[{shortcut}]</span>}
+    </button>
+  );
+}
+
+function MobileActionBtn({ onClick, bg, color, label }) {
+  return (
+    <button onClick={onClick}
+      style={{
+        flex: 1, padding: '10px 8px', borderRadius: 10, fontSize: 12, fontWeight: 700,
+        cursor: 'pointer', border: 'none', background: bg, color, whiteSpace: 'nowrap',
+        fontFamily: "'IBM Plex Mono',monospace", textAlign: 'center',
+      }}
+    >
+      {label}
     </button>
   );
 }
