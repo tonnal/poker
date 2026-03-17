@@ -172,6 +172,7 @@ export default function App() {
   const processingRef = useRef(false);
   const logRef = useRef(null);
   const humanResolveRef = useRef(null);
+  const nextHandResolveRef = useRef(null);
 
   const addLog = useCallback((msg) => {
     setGameLog(prev => [...prev.slice(-39), msg]);
@@ -495,13 +496,13 @@ export default function App() {
       if (potTotal >= 20) setShowConfetti(true);
     }
 
-    await delayMs(5000);
+    // Wait for user to click "Next Hand"
+    await waitForNextHand();
     setShowConfetti(false);
     processingRef.current = false;
 
     const alive = ps.filter(p => p.chips > 0);
     if (alive.length >= 2) {
-      await delayMs(500);
       runFullHand(ps, handNum + 1);
     } else {
       addLog('🎰 Game Over! Click New Game to restart.');
@@ -617,6 +618,19 @@ export default function App() {
     humanResolveRef.current = null;
   }
 
+  function waitForNextHand() {
+    return new Promise(resolve => {
+      nextHandResolveRef.current = resolve;
+    });
+  }
+
+  function handleNextHand() {
+    if (nextHandResolveRef.current) {
+      nextHandResolveRef.current();
+      nextHandResolveRef.current = null;
+    }
+  }
+
   function startNewHand() {
     if (processingRef.current) return;
     const hn = handNumber + 1;
@@ -627,6 +641,7 @@ export default function App() {
     processingRef.current = false;
     humanResolveRef.current = null;
     passResolveRef.current = null;
+    nextHandResolveRef.current = null;
     setWaitingForHuman(false);
     setShowPassScreen(false);
     setCardsVisible(false);
@@ -1076,6 +1091,24 @@ export default function App() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ── Next Hand button (showdown) ── */}
+      {phase === 'showdown' && nextHandResolveRef.current && (
+        <div style={{
+          position: 'absolute', bottom: 24, left: '50%', transform: 'translateX(-50%)',
+          zIndex: 30,
+        }}>
+          <button onClick={handleNextHand}
+            style={{
+              padding: '12px 36px', borderRadius: 14, fontSize: 16, fontWeight: 700,
+              cursor: 'pointer',
+              background: 'linear-gradient(135deg,#c9a84c,#9a7b2e)', color: '#0d0d0d',
+              border: 'none', fontFamily: "'Playfair Display',serif", letterSpacing: 2,
+              boxShadow: '0 4px 20px rgba(201,168,76,0.3)',
+            }}
+          >NEXT HAND</button>
+        </div>
+      )}
 
       {/* ── Game Log ── */}
       <div style={{ position: 'absolute', top: 68, right: 16, zIndex: 20, width: 260 }}>
