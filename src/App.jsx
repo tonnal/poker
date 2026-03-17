@@ -406,18 +406,18 @@ export default function App() {
             }} />
           </div>
         </div>
-        <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+        {/* Content layer */}
+        <div style={{ position: 'relative', zIndex: 1, width: '100%', height: '100%' }}>
         <Confetti active={showConfetti} />
 
         {/* Header */}
         <div style={{
+          position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20,
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '10px 16px', flexShrink: 0,
+          padding: '10px 16px',
         }}>
-          <span style={{ fontFamily: "'Playfair Display',serif", color: '#c9a84c', fontSize: 16, letterSpacing: 2 }}>
-            ESG
-          </span>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <span style={{ fontFamily: "'Playfair Display',serif", color: '#c9a84c', fontSize: 16, letterSpacing: 2 }}>ESG</span>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             {['pre-flop', 'flop', 'turn', 'river', 'showdown'].map(p => (
               <span key={p} style={{
                 fontSize: 8, textTransform: 'uppercase', letterSpacing: 1, padding: '2px 5px',
@@ -429,77 +429,98 @@ export default function App() {
           <span style={{ color: '#555', fontSize: 10 }}>{roomCode}</span>
         </div>
 
-        {/* Other players - horizontal scroll */}
-        <div style={{
-          display: 'flex', gap: 8, padding: '4px 16px', overflowX: 'auto', flexShrink: 0,
-        }}>
-          {others.map(player => {
+        {/* Other players positioned around the table */}
+        {(() => {
+          const mobileSeats = {
+            1: [{ x: 50, y: 8 }],
+            2: [{ x: 15, y: 12 }, { x: 85, y: 12 }],
+            3: [{ x: 10, y: 30 }, { x: 50, y: 8 }, { x: 90, y: 30 }],
+            4: [{ x: 8, y: 30 }, { x: 35, y: 8 }, { x: 65, y: 8 }, { x: 92, y: 30 }],
+            5: [{ x: 8, y: 35 }, { x: 25, y: 10 }, { x: 50, y: 5 }, { x: 75, y: 10 }, { x: 92, y: 35 }],
+            6: [{ x: 8, y: 38 }, { x: 15, y: 14 }, { x: 50, y: 5 }, { x: 85, y: 14 }, { x: 92, y: 38 }, { x: 50, y: 5 }],
+          };
+          const seats = mobileSeats[others.length] || mobileSeats[Math.min(others.length, 6)];
+          return others.map((player, i) => {
+            const pos = seats[i];
+            if (!pos) return null;
             const isActive = gs.activePlayerIndex >= 0 && gs.players[gs.activePlayerIndex]?.id === player.id;
             const isWinner = gs.winnerIds.includes(player.id);
             const isFolded = player.folded;
             const action = gs.playerActions[gs.players.findIndex(p => p.id === player.id)];
-
             return (
               <div key={player.id} style={{
-                display: 'flex', flexDirection: 'column', alignItems: 'center',
-                padding: '6px 10px', borderRadius: 10, flexShrink: 0, minWidth: 60,
-                background: isActive ? 'rgba(201,168,76,0.1)' : 'rgba(30,30,30,0.8)',
-                border: isActive ? '1px solid #c9a84c' : '1px solid transparent',
-                opacity: isFolded ? 0.35 : 1,
+                position: 'absolute', left: `${pos.x}%`, top: `${pos.y}%`,
+                transform: 'translate(-50%,-50%)', zIndex: 10,
               }}>
-                <span style={{ fontSize: 18 }}>{player.emoji}</span>
-                <span style={{ fontSize: 9, color: '#bbb', marginBottom: 2 }}>{player.name}</span>
-                <span style={{ fontSize: 10, color: '#c9a84c', fontWeight: 700 }}>${player.chips}</span>
-                {action && (
-                  <span style={{
-                    fontSize: 8, padding: '1px 5px', borderRadius: 8, marginTop: 2,
-                    background: action.action === 'fold' ? '#7f1d1d' : action.action === 'raise' ? '#713f12' : '#14532d',
-                    color: action.action === 'fold' ? '#fca5a5' : action.action === 'raise' ? '#fde68a' : '#86efac',
-                  }}>{action.action === 'raise' ? `R $${action.amount}` : action.action.toUpperCase()}</span>
-                )}
-                {isWinner && <span style={{ fontSize: 9, color: '#fbbf24', marginTop: 2 }}>WIN</span>}
+                <div style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'center',
+                  padding: '4px 8px', borderRadius: 10,
+                  background: isActive ? 'rgba(201,168,76,0.15)' : 'rgba(13,13,13,0.8)',
+                  border: isActive ? '1px solid #c9a84c' : '1px solid transparent',
+                  opacity: isFolded ? 0.35 : 1, minWidth: 50,
+                }}>
+                  <span style={{ fontSize: 16 }}>{player.emoji}</span>
+                  <span style={{ fontSize: 8, color: '#bbb' }}>{player.name}</span>
+                  <span style={{ fontSize: 9, color: '#c9a84c', fontWeight: 700 }}>${player.chips}</span>
+                  {action && (
+                    <span style={{
+                      fontSize: 7, padding: '1px 4px', borderRadius: 6, marginTop: 1,
+                      background: action.action === 'fold' ? '#7f1d1d' : action.action === 'raise' ? '#713f12' : '#14532d',
+                      color: action.action === 'fold' ? '#fca5a5' : action.action === 'raise' ? '#fde68a' : '#86efac',
+                    }}>{action.action === 'raise' ? `R$${action.amount}` : action.action.toUpperCase()}</span>
+                  )}
+                  {isWinner && <span style={{ fontSize: 8, color: '#fbbf24' }}>WIN</span>}
+                </div>
               </div>
             );
-          })}
-        </div>
+          });
+        })()}
 
-        {/* Pot */}
+        {/* Pot — centered on table */}
         {gs.pot > 0 && (
-          <div style={{ textAlign: 'center', padding: '6px 0', flexShrink: 0 }}>
-            <span style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 2, color: '#888' }}>Pot </span>
-            <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontWeight: 700, color: '#c9a84c', fontSize: 16 }}>
-              ${gs.pot}
-            </span>
+          <div style={{
+            position: 'absolute', left: '50%', top: '33%', transform: 'translate(-50%,-50%)', zIndex: 10,
+            textAlign: 'center',
+          }}>
+            <span style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: 2, color: 'rgba(255,255,255,0.5)' }}>Pot </span>
+            <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontWeight: 700, color: '#c9a84c', fontSize: 16 }}>${gs.pot}</span>
           </div>
         )}
 
-        {/* Boards */}
-        <div style={{ padding: '4px 16px', flexShrink: 0 }}>
-          {/* Top Board */}
-          <div style={{ marginBottom: 8 }}>
-            <span style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: 2, color: '#888' }}>Top Board</span>
-            <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+        {/* Boards — centered on table */}
+        <div style={{
+          position: 'absolute', left: '50%', top: '45%', transform: 'translate(-50%,-50%)', zIndex: 10,
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+        }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+            <span style={{ fontSize: 7, textTransform: 'uppercase', letterSpacing: 2, color: 'rgba(255,255,255,0.4)' }}>Top</span>
+            <div style={{ display: 'flex', gap: 3 }}>
               {gs.topBoard.map((card, i) => (
                 <PlayingCard key={`t${i}`} card={card} faceDown={i >= gs.topRevealed} small
-                  style={{ width: 40, height: 56 }} />
+                  style={{ width: 38, height: 53 }} />
               ))}
             </div>
           </div>
-          {/* Bottom Board */}
-          <div>
-            <span style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: 2, color: '#888' }}>Bottom Board</span>
-            <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+            <span style={{ fontSize: 7, textTransform: 'uppercase', letterSpacing: 2, color: 'rgba(255,255,255,0.4)' }}>Bottom</span>
+            <div style={{ display: 'flex', gap: 3 }}>
               {gs.bottomBoard.map((card, i) => (
                 <PlayingCard key={`b${i}`} card={card} faceDown={i >= gs.bottomRevealed} small
-                  style={{ width: 40, height: 56 }} />
+                  style={{ width: 38, height: 53 }} />
               ))}
             </div>
           </div>
         </div>
 
-        {/* Showdown: all players' cards */}
+        {/* Showdown overlay */}
         {gs.phase === 'showdown' && (
-          <div style={{ padding: '8px 16px', flexShrink: 0 }}>
+          <div style={{
+            position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 30,
+            background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)',
+            padding: '12px 16px', maxHeight: '55vh', overflowY: 'auto',
+            borderTopLeftRadius: 20, borderTopRightRadius: 20,
+          }}>
+            <div style={{ fontSize: 12, color: '#c9a84c', fontWeight: 700, textAlign: 'center', marginBottom: 8 }}>SHOWDOWN</div>
             {reordered.filter(p => !p.folded && p.holeCards?.length > 0).map(player => {
               const sdResult = gs.showdownResults?.find(r => r.playerId === player.id);
               const isWinner = gs.winnerIds.includes(player.id);
@@ -515,12 +536,12 @@ export default function App() {
                         {sdResult.totalPoints.toFixed(1)} pts
                       </span>
                     )}
-                    {isWinner && <span style={{ fontSize: 10, color: '#fbbf24' }}>WIN</span>}
+                    {isWinner && <span style={{ fontSize: 10, color: '#fbbf24' }}> WIN</span>}
                   </div>
                   <div style={{ display: 'flex' }}>
                     {player.holeCards.map((c, ci) => (
                       <div key={cardKey(c)} style={{ marginLeft: ci === 0 ? 0 : -24, zIndex: ci }}>
-                        <PlayingCard card={c} small style={{ width: 36, height: 50 }} />
+                        <PlayingCard card={c} small style={{ width: 34, height: 48 }} />
                       </div>
                     ))}
                   </div>
@@ -530,7 +551,7 @@ export default function App() {
             <button onClick={nextHand}
               style={{
                 width: '100%', padding: '12px', borderRadius: 12, fontSize: 15, fontWeight: 700,
-                cursor: 'pointer', marginTop: 8,
+                cursor: 'pointer', marginTop: 4,
                 background: 'linear-gradient(135deg,#c9a84c,#9a7b2e)', color: '#0d0d0d',
                 border: 'none', fontFamily: "'Playfair Display',serif", letterSpacing: 2,
               }}
@@ -538,34 +559,35 @@ export default function App() {
           </div>
         )}
 
-        {/* Spacer */}
-        <div style={{ flex: 1, minHeight: 8 }} />
-
-        {/* My cards + info */}
+        {/* My cards — bottom area */}
         {myPlayer && myPlayer.holeCards?.length > 0 && gs.phase !== 'showdown' && (
-          <div style={{ padding: '8px 16px', flexShrink: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-              <span style={{ fontSize: 18 }}>{myPlayer.emoji}</span>
-              <span style={{ fontSize: 12, color: '#c9a84c', fontWeight: 700 }}>{myPlayer.name}</span>
-              <span style={{ fontSize: 12, color: '#c9a84c', marginLeft: 'auto' }}>${myPlayer.chips}</span>
+          <div style={{
+            position: 'absolute', bottom: isMyTurn ? 110 : 40, left: 0, right: 0, zIndex: 15,
+            padding: '0 16px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              <span style={{ fontSize: 14 }}>{myPlayer.emoji}</span>
+              <span style={{ fontSize: 11, color: '#c9a84c', fontWeight: 700 }}>{myPlayer.name}</span>
+              <span style={{ fontSize: 11, color: '#c9a84c', marginLeft: 'auto' }}>${myPlayer.chips}</span>
             </div>
             <div style={{ display: 'flex', overflowX: 'auto', paddingBottom: 4 }}>
               {myPlayer.holeCards.map((card, i) => (
-                <div key={cardKey(card)} style={{ marginLeft: i === 0 ? 0 : -28, flexShrink: 0, zIndex: i }}>
-                  <PlayingCard card={card} small style={{ width: 44, height: 62 }} />
+                <div key={cardKey(card)} style={{ marginLeft: i === 0 ? 0 : -26, flexShrink: 0, zIndex: i }}>
+                  <PlayingCard card={card} small style={{ width: 42, height: 59 }} />
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* Action bar */}
+        {/* Action bar — fixed bottom */}
         {isMyTurn && gs.phase !== 'showdown' && (
           <div style={{
-            padding: '10px 16px', flexShrink: 0, borderTop: '1px solid #222',
-            background: 'rgba(13,13,13,0.95)',
+            position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 20,
+            padding: '8px 12px', background: 'rgba(13,13,13,0.95)',
+            borderTop: '1px solid #222',
           }}>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
               <MobileActionBtn onClick={() => sendAction('fold')} bg="#7f1d1d" color="#fca5a5" label="FOLD" />
               {canCheck ? (
                 <MobileActionBtn onClick={() => sendAction('check')} bg="#14532d" color="#86efac" label="CHECK" />
@@ -588,19 +610,22 @@ export default function App() {
         {/* Waiting indicator */}
         {!isMyTurn && gs.phase !== 'showdown' && gs.phase !== 'waiting' && gs.phase !== 'dealing' && (
           <div style={{
-            padding: '12px 16px', textAlign: 'center', flexShrink: 0,
-            color: '#888', fontSize: 12, borderTop: '1px solid #222',
+            position: 'absolute', bottom: 10, left: 0, right: 0, zIndex: 15,
+            textAlign: 'center', color: '#888', fontSize: 11,
           }}>
             Waiting for {gs.activePlayerIndex >= 0 ? gs.players[gs.activePlayerIndex]?.name : '...'}
           </div>
         )}
 
         {/* Info */}
-        <div style={{ padding: '6px 16px', flexShrink: 0, fontSize: 9, color: 'rgba(255,255,255,0.3)', textAlign: 'center' }}>
-          Blinds: $1/$3 · Hand #{gs.handNumber} · Deck: {gs.deckCount}
-          {gs.owedCards > 0 && ` · Owed: ${gs.owedCards}`}
+        <div style={{
+          position: 'absolute', bottom: 2, left: 0, right: 0, zIndex: 5,
+          fontSize: 8, color: 'rgba(255,255,255,0.2)', textAlign: 'center',
+        }}>
+          $1/$3 · #{gs.handNumber} · Deck:{gs.deckCount}
+          {gs.owedCards > 0 && ` · Owed:${gs.owedCards}`}
         </div>
-        </div>{/* close z-index wrapper */}
+        </div>{/* close content layer */}
       </div>
     );
   }
