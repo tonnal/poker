@@ -384,9 +384,29 @@ export default function App() {
     return (
       <div style={{
         width: '100vw', height: '100vh', overflow: 'auto',
-        background: '#0d0d0d', fontFamily: "'IBM Plex Mono',monospace",
+        background: '#1a1a2e', fontFamily: "'IBM Plex Mono',monospace",
         display: 'flex', flexDirection: 'column', userSelect: 'none',
+        position: 'relative',
       }}>
+        {/* Table background */}
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 0, overflow: 'hidden',
+          background: 'linear-gradient(180deg, #0d0d1a 0%, #1a1a2e 30%, #0d0d1a 100%)',
+        }}>
+          <div style={{
+            position: 'absolute', left: '50%', top: '45%', transform: 'translate(-50%,-50%)',
+            width: '92vw', height: '70vh', borderRadius: '50%',
+            background: 'radial-gradient(ellipse, #1a5c5c 0%, #164848 40%, #0f3535 70%, #0a2a2a 100%)',
+            border: '6px solid #2a2a2a',
+            boxShadow: 'inset 0 0 80px rgba(0,0,0,0.4), 0 0 40px rgba(0,0,0,0.6)',
+          }}>
+            <div style={{
+              position: 'absolute', inset: 10, borderRadius: '50%',
+              border: '2px solid rgba(255,255,255,0.06)',
+            }} />
+          </div>
+        </div>
+        <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
         <Confetti active={showConfetti} />
 
         {/* Header */}
@@ -576,10 +596,11 @@ export default function App() {
         )}
 
         {/* Info */}
-        <div style={{ padding: '6px 16px', flexShrink: 0, fontSize: 9, color: '#444', textAlign: 'center' }}>
+        <div style={{ padding: '6px 16px', flexShrink: 0, fontSize: 9, color: 'rgba(255,255,255,0.3)', textAlign: 'center' }}>
           Blinds: $1/$3 · Hand #{gs.handNumber} · Deck: {gs.deckCount}
           {gs.owedCards > 0 && ` · Owed: ${gs.owedCards}`}
         </div>
+        </div>{/* close z-index wrapper */}
       </div>
     );
   }
