@@ -1,5 +1,5 @@
 // ============================================================
-// ESG (6-3-3-3) Poker Engine
+// ESG (6-3-3-3) Poker Engine — Multiplayer (no AI)
 // ============================================================
 
 const SUITS = ['♠', '♥', '♦', '♣'];
@@ -134,10 +134,6 @@ export function compareHands(a, b) {
 // ESG Hand Evaluation — 3 categories
 // ============================================================
 
-// Top Board: exactly 2 hole cards + 3 from top board (Omaha rules)
-// Bottom Board: exactly 2 hole cards + 3 from bottom board (Omaha rules)
-// Hand Strength: best 5 from hole cards only (no board)
-
 export function evaluateOmahaBoard(holeCards, boardCards) {
   const holeCombos = getCombinations(holeCards, 2);
   const boardCombos = getCombinations(boardCards, 3);
@@ -154,7 +150,6 @@ export function evaluateOmahaBoard(holeCards, boardCards) {
 }
 
 export function evaluateHandStrength(holeCards) {
-  // Best 5 cards from hole cards only
   if (holeCards.length < 5) return { rank: 0, kickers: [] };
   const combos = getCombinations(holeCards, 5);
   let best = null;
@@ -168,7 +163,6 @@ export function evaluateHandStrength(holeCards) {
 }
 
 export function evaluateESGShowdown(players, topBoard, bottomBoard) {
-  // Returns array of { playerId, topHand, bottomHand, handStrength, topPoints, bottomPoints, handPoints, totalPoints }
   const results = players.map(p => {
     const topHand = evaluateOmahaBoard(p.holeCards, topBoard);
     const bottomHand = evaluateOmahaBoard(p.holeCards, bottomBoard);
@@ -185,12 +179,10 @@ export function evaluateESGShowdown(players, topBoard, bottomBoard) {
     };
   });
 
-  // Score each category
   scoreCategory(results, 'topHand', 'topPoints');
   scoreCategory(results, 'bottomHand', 'bottomPoints');
   scoreCategory(results, 'handStrength', 'handPoints');
 
-  // Total
   for (const r of results) {
     r.totalPoints = r.topPoints + r.bottomPoints + r.handPoints;
   }
@@ -199,14 +191,12 @@ export function evaluateESGShowdown(players, topBoard, bottomBoard) {
 }
 
 function scoreCategory(results, handKey, pointsKey) {
-  // Find the best hand in this category
   let best = null;
   for (const r of results) {
     if (!best || compareHands(r[handKey], best) > 0) {
       best = r[handKey];
     }
   }
-  // Find all tied for best
   const winners = results.filter(r => compareHands(r[handKey], best) === 0);
   const pointsEach = 1 / winners.length;
   for (const w of winners) {
@@ -220,131 +210,17 @@ function scoreCategory(results, handKey, pointsKey) {
 
 export function calculatePotLimitMax(pot, currentBet, playerCurrentBet) {
   const toCall = currentBet - playerCurrentBet;
-  // PLO pot limit: pot + all bets on table + the call amount
-  // Max raise = pot after calling = pot + toCall + toCall = pot + 2*toCall
-  // Total bet = toCall + (pot + 2*toCall) = pot + 3*toCall
-  // But the "max bet" from player's perspective is: call + pot-after-call
   const potAfterCall = pot + toCall;
-  const maxRaise = potAfterCall + toCall; // this is the raise amount on top of call
-  const maxTotalBet = toCall + potAfterCall; // total the player puts in = call + raise up to pot
-  return currentBet + potAfterCall; // the total bet level
-}
-
-// ============================================================
-// AI Decision Engine (simplified for ESG)
-// ============================================================
-
-const AI_PERSONALITIES = [
-  { name: 'Viktor', emoji: '🎩', style: 'tight-aggressive', bluffRate: 0.08, aggression: 0.7 },
-  { name: 'Luna', emoji: '🌙', style: 'loose-aggressive', bluffRate: 0.22, aggression: 0.8 },
-  { name: 'Rex', emoji: '🦁', style: 'maniac', bluffRate: 0.25, aggression: 0.9 },
-  { name: 'Mei', emoji: '🌸', style: 'tight-passive', bluffRate: 0.05, aggression: 0.3 },
-  { name: 'Duke', emoji: '🎯', style: 'balanced', bluffRate: 0.15, aggression: 0.55 },
-  { name: 'Zara', emoji: '⚡', style: 'aggressive', bluffRate: 0.18, aggression: 0.75 },
-];
-
-export { AI_PERSONALITIES };
-
-export function estimateESGStrength(holeCards, topBoard, bottomBoard, phase) {
-  let strength = 0;
-  let count = 0;
-
-  if (topBoard.length >= 3) {
-    const topHand = evaluateOmahaBoard(holeCards, topBoard);
-    strength += topHand.rank / 10;
-    count++;
-  }
-  if (bottomBoard.length >= 3) {
-    const bottomHand = evaluateOmahaBoard(holeCards, bottomBoard);
-    strength += bottomHand.rank / 10;
-    count++;
-  }
-  if (holeCards.length >= 5) {
-    const handStr = evaluateHandStrength(holeCards);
-    strength += handStr.rank / 10;
-    count++;
-  }
-
-  if (count === 0) {
-    // Pre-flop: estimate from hole cards
-    const values = holeCards.map(c => c.value).sort((a, b) => b - a);
-    const hasPair = new Set(values).size < values.length;
-    const suitCounts = {};
-    holeCards.forEach(c => suitCounts[c.suit] = (suitCounts[c.suit] || 0) + 1);
-    const maxSuited = Math.max(...Object.values(suitCounts));
-
-    strength = (values[0] + values[1]) / 28 * 0.5;
-    if (hasPair) strength += 0.15;
-    if (maxSuited >= 3) strength += 0.08;
-    if (maxSuited >= 4) strength += 0.1;
-    return Math.min(1, Math.max(0.05, strength));
-  }
-
-  return Math.min(1, strength / count);
-}
-
-export function makeAIDecision(player, gameState, personality) {
-  const { holeCards, topBoard, bottomBoard, currentBet, pot, phase, bigBlind } = gameState;
-  const playerBet = player.currentBet || 0;
-  const toCall = currentBet - playerBet;
-  const chips = player.chips;
-
-  if (chips <= 0) return { action: 'check', amount: 0 };
-
-  const potLimitMax = calculatePotLimitMax(pot, currentBet, playerBet);
-  const handStrength = estimateESGStrength(holeCards, topBoard, bottomBoard, phase);
-
-  const potOdds = toCall > 0 ? toCall / (pot + toCall) : 0;
-  const isBluffing = Math.random() < personality.bluffRate;
-  const effectiveStrength = isBluffing ? Math.min(1, handStrength + 0.3) : handStrength;
-
-  const foldThreshold = 0.25 - personality.aggression * 0.1;
-  const raiseThreshold = 0.6 - personality.aggression * 0.15;
-
-  if (toCall > 0) {
-    if (effectiveStrength < foldThreshold && toCall > chips * 0.3) {
-      return { action: 'fold', amount: 0 };
-    }
-    if (effectiveStrength < foldThreshold && potOdds > effectiveStrength) {
-      return { action: 'fold', amount: 0 };
-    }
-    if (effectiveStrength >= raiseThreshold && chips > toCall * 2) {
-      const raiseAmount = Math.min(
-        chips + playerBet,
-        potLimitMax,
-        Math.max(currentBet * 2, Math.floor(pot * effectiveStrength * personality.aggression))
-      );
-      return { action: 'raise', amount: Math.max(raiseAmount, currentBet * 2) };
-    }
-    return { action: 'call', amount: Math.min(chips, toCall) };
-  }
-
-  if (effectiveStrength >= raiseThreshold) {
-    const betAmount = Math.min(
-      chips + playerBet,
-      potLimitMax,
-      Math.max(bigBlind, Math.floor(pot * effectiveStrength * personality.aggression * 0.5))
-    );
-    return { action: 'raise', amount: Math.max(betAmount, bigBlind) };
-  }
-
-  return { action: 'check', amount: 0 };
+  return currentBet + potAfterCall;
 }
 
 // ============================================================
 // Player Creation
 // ============================================================
 
-export function createInitialPlayers(numPlayers = 6) {
-  const players = [
-    { id: 0, name: 'You', emoji: '😎', chips: 500, isHuman: true, folded: false, currentBet: 0, holeCards: [], isAllIn: false },
-  ];
-  for (let i = 0; i < numPlayers - 1; i++) {
-    const p = AI_PERSONALITIES[i];
-    players.push({
-      id: i + 1, name: p.name, emoji: p.emoji, chips: 500, isHuman: false,
-      folded: false, currentBet: 0, holeCards: [], personality: p, isAllIn: false,
-    });
-  }
-  return players;
+export function createPlayers(names) {
+  return names.map((name, i) => ({
+    id: i, name, emoji: ['😎', '🎩', '🌙', '🦁', '🌸', '🎯', '⚡'][i % 7],
+    chips: 500, folded: false, currentBet: 0, holeCards: [], isAllIn: false,
+  }));
 }

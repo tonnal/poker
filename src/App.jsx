@@ -3,23 +3,20 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   createDeck, cardKey, isRed, shuffle,
   evaluateESGShowdown, calculatePotLimitMax,
-  makeAIDecision, createInitialPlayers, HAND_NAMES,
-  compareHands,
+  createPlayers, HAND_NAMES,
 } from './esgEngine';
 
 const SMALL_BLIND = 1;
 const BIG_BLIND = 3;
 
-const SEAT_POSITIONS = [
-  { x: 50, y: 88 },  // human (bottom center)
-  { x: 8, y: 62 },
-  { x: 8, y: 28 },
-  { x: 50, y: 6 },
-  { x: 92, y: 28 },
-  { x: 92, y: 62 },
-];
-
-const AI_SPEED = { fast: 300, normal: 700, slow: 1200 };
+const SEAT_POSITIONS_MAP = {
+  2: [{ x: 50, y: 88 }, { x: 50, y: 6 }],
+  3: [{ x: 50, y: 88 }, { x: 15, y: 30 }, { x: 85, y: 30 }],
+  4: [{ x: 50, y: 88 }, { x: 8, y: 50 }, { x: 50, y: 6 }, { x: 92, y: 50 }],
+  5: [{ x: 50, y: 88 }, { x: 8, y: 60 }, { x: 20, y: 15 }, { x: 80, y: 15 }, { x: 92, y: 60 }],
+  6: [{ x: 50, y: 88 }, { x: 8, y: 62 }, { x: 8, y: 28 }, { x: 50, y: 6 }, { x: 92, y: 28 }, { x: 92, y: 62 }],
+  7: [{ x: 50, y: 88 }, { x: 8, y: 65 }, { x: 8, y: 35 }, { x: 30, y: 6 }, { x: 70, y: 6 }, { x: 92, y: 35 }, { x: 92, y: 65 }],
+};
 
 /* ─── Playing Card ─── */
 function PlayingCard({ card, faceDown = false, small = false, style = {} }) {
@@ -65,7 +62,7 @@ function PlayingCard({ card, faceDown = false, small = false, style = {} }) {
   );
 }
 
-/* ─── Animated chip count ─── */
+/* ─── Chip count ─── */
 function ChipCount({ amount }) {
   return (
     <motion.span
@@ -111,22 +108,6 @@ function ActionBadge({ action, amount }) {
   );
 }
 
-/* ─── Thinking dots ─── */
-function ThinkingIndicator() {
-  return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      style={{
-        position: 'absolute', top: -32, left: '50%', transform: 'translateX(-50%)',
-        padding: '3px 10px', borderRadius: 20, background: 'rgba(30,30,30,0.9)',
-        color: '#fbbf24', fontSize: 11, fontFamily: "'IBM Plex Mono',monospace", zIndex: 30,
-      }}>
-      <motion.span animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.2, repeat: Infinity }}>
-        thinking...
-      </motion.span>
-    </motion.div>
-  );
-}
-
 /* ─── Confetti ─── */
 function Confetti({ active }) {
   const particles = useMemo(() =>
@@ -153,10 +134,15 @@ function Confetti({ active }) {
 
 
 /* ═══════════════════════════════════════════════════════
-   MAIN APP — ESG (6-3-3-3) Poker
+   MAIN APP — ESG (6-3-3-3) Multiplayer Hot-Seat
    ═══════════════════════════════════════════════════════ */
 export default function App() {
-  const [players, setPlayers] = useState(createInitialPlayers);
+  // Setup state
+  const [gameStarted, setGameStarted] = useState(false);
+  const [playerNames, setPlayerNames] = useState(['', '']);
+
+  // Game state
+  const [players, setPlayers] = useState([]);
   const [undistributedDeck, setUndistributedDeck] = useState([]);
   const [topBoard, setTopBoard] = useState([]);
   const [bottomBoard, setBottomBoard] = useState([]);
@@ -164,7 +150,7 @@ export default function App() {
   const [bottomRevealed, setBottomRevealed] = useState(0);
   const [pot, setPot] = useState(0);
   const [currentBet, setCurrentBet] = useState(0);
-  const [phase, setPhase] = useState('waiting'); // waiting, pre-flop, flop, turn, river, showdown
+  const [phase, setPhase] = useState('waiting');
   const [dealerIndex, setDealerIndex] = useState(0);
   const [activePlayerIndex, setActivePlayerIndex] = useState(-1);
   const [handNumber, setHandNumber] = useState(0);
@@ -172,34 +158,38 @@ export default function App() {
   const [showdownResults, setShowdownResults] = useState(null);
   const [winnerIds, setWinnerIds] = useState([]);
   const [showConfetti, setShowConfetti] = useState(false);
-  const [aiSpeed, setAiSpeed] = useState('normal');
-  const [showSettings, setShowSettings] = useState(false);
   const [raiseAmount, setRaiseAmount] = useState(BIG_BLIND * 2);
-  const [thinkingPlayer, setThinkingPlayer] = useState(-1);
   const [playerActions, setPlayerActions] = useState({});
   const [waitingForHuman, setWaitingForHuman] = useState(false);
-  const [owedCards, setOwedCards] = useState(0); // cards owed per player
+  const [owedCards, setOwedCards] = useState(0);
+
+  // Pass device overlay
+  const [showPassScreen, setShowPassScreen] = useState(false);
+  const [passScreenPlayer, setPassScreenPlayer] = useState('');
+  const [cardsVisible, setCardsVisible] = useState(false);
 
   const processingRef = useRef(false);
   const logRef = useRef(null);
   const humanResolveRef = useRef(null);
 
   const addLog = useCallback((msg) => {
-    setGameLog(prev => [...prev.slice(-29), msg]);
+    setGameLog(prev => [...prev.slice(-39), msg]);
   }, []);
 
   useEffect(() => {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
   }, [gameLog]);
 
-  const humanPlayer = players[0];
-  const toCall = currentBet - (humanPlayer?.currentBet || 0);
+  const numPlayers = players.length;
+  const seatPositions = SEAT_POSITIONS_MAP[numPlayers] || SEAT_POSITIONS_MAP[6];
+  const activePlayer = activePlayerIndex >= 0 ? players[activePlayerIndex] : null;
+  const toCall = activePlayer ? currentBet - (activePlayer?.currentBet || 0) : 0;
   const canCheck = toCall <= 0;
-  const potLimitMax = calculatePotLimitMax(pot, currentBet, humanPlayer?.currentBet || 0);
+  const potLimitMax = activePlayer ? calculatePotLimitMax(pot, currentBet, activePlayer?.currentBet || 0) : 0;
   const minRaise = Math.max(BIG_BLIND, currentBet * 2);
-  const maxRaise = Math.min(humanPlayer.chips + humanPlayer.currentBet, potLimitMax);
+  const maxRaise = activePlayer ? Math.min(activePlayer.chips + activePlayer.currentBet, potLimitMax) : BIG_BLIND * 2;
 
-  const delay = (ms) => new Promise(r => setTimeout(r, ms));
+  const delayMs = (ms) => new Promise(r => setTimeout(r, ms));
 
   function findNextActive(pList, fromIdx) {
     const total = pList.length;
@@ -212,18 +202,12 @@ export default function App() {
     return fromIdx;
   }
 
-  function getActivePlayers(ps) {
-    return ps.filter(p => !p.folded);
-  }
-
-  // ─── Distribute cards equally to remaining players ───
   function distributeCards(ps, deck, cardsPerPlayer, logFn) {
     const active = ps.filter(p => !p.folded && !p.isAllIn);
     const totalNeeded = active.length * cardsPerPlayer;
     let toGive = cardsPerPlayer;
 
     if (deck.length < totalNeeded) {
-      // Distribute equally
       toGive = Math.floor(deck.length / active.length);
       if (toGive === 0) return { deck, owed: cardsPerPlayer };
     }
@@ -245,21 +229,17 @@ export default function App() {
     return { deck, owed };
   }
 
-  // ─── Handle fold: return cards to deck ───
   function handleFoldCards(ps, foldedPlayerIdx, deck, currentOwed, isRiver, logFn) {
     const foldedCards = ps[foldedPlayerIdx].holeCards;
     ps[foldedPlayerIdx].holeCards = [];
     ps[foldedPlayerIdx].folded = true;
 
     if (isRiver) {
-      // After river, cards go to muck, no redistribution
       return { deck, owed: currentOwed };
     }
 
-    // Add folded cards back and reshuffle
     const newDeck = shuffle([...deck, ...foldedCards]);
 
-    // If there are owed cards, distribute them now
     if (currentOwed > 0) {
       const active = ps.filter(p => !p.folded && !p.isAllIn);
       let remaining = currentOwed;
@@ -284,6 +264,33 @@ export default function App() {
   }
 
   // ═══════════════════════════════════════
+  // PASS DEVICE SCREEN
+  // ═══════════════════════════════════════
+
+  function showPassDeviceScreen(playerName) {
+    return new Promise(resolve => {
+      setCardsVisible(false);
+      setPassScreenPlayer(playerName);
+      setShowPassScreen(true);
+      const handler = () => {
+        setShowPassScreen(false);
+        resolve();
+      };
+      // Store handler so the button can call it
+      passResolveRef.current = handler;
+    });
+  }
+
+  const passResolveRef = useRef(null);
+
+  function handlePassReady() {
+    if (passResolveRef.current) {
+      passResolveRef.current();
+      passResolveRef.current = null;
+    }
+  }
+
+  // ═══════════════════════════════════════
   // MAIN GAME LOOP
   // ═══════════════════════════════════════
 
@@ -291,10 +298,9 @@ export default function App() {
     processingRef.current = true;
 
     const fullDeck = createDeck();
-    const numPlayers = startPlayers.filter(p => p.chips > 0 || p.isHuman).length;
-    const newDealerIdx = handNum % numPlayers;
+    const activePlayers = startPlayers.filter(p => p.chips > 0);
+    const newDealerIdx = handNum % activePlayers.length;
 
-    // Reset state
     setShowdownResults(null);
     setWinnerIds([]);
     setShowConfetti(false);
@@ -309,14 +315,15 @@ export default function App() {
     setDealerIndex(newDealerIdx);
     setHandNumber(handNum);
     setOwedCards(0);
+    setCardsVisible(false);
 
     const ps = startPlayers.map(p => ({
-      ...p, folded: p.chips <= 0 && !p.isHuman, currentBet: 0, holeCards: [], isAllIn: false,
+      ...p, folded: p.chips <= 0, currentBet: 0, holeCards: [], isAllIn: false,
     }));
     setPlayers([...ps]);
     addLog(`── Hand #${handNum} ──`);
 
-    // Set aside 10 cards for the two boards (5 top + 5 bottom)
+    // Set aside 10 cards for boards
     const topBoardCards = [];
     const bottomBoardCards = [];
     for (let i = 0; i < 5; i++) topBoardCards.push(fullDeck.pop());
@@ -325,10 +332,10 @@ export default function App() {
     setTopBoard([...topBoardCards]);
     setBottomBoard([...bottomBoardCards]);
 
-    let deck = fullDeck; // remaining = undistributed deck
+    let deck = fullDeck;
 
     // Deal 6 cards to each active player
-    await delay(300);
+    await delayMs(300);
     const activeForDeal = ps.filter(p => !p.folded);
     for (let round = 0; round < 6; round++) {
       for (const p of activeForDeal) {
@@ -336,9 +343,8 @@ export default function App() {
           ps[p.id].holeCards = [...ps[p.id].holeCards, deck.pop()];
         }
       }
-      setPlayers([...ps]);
-      await delay(80);
     }
+    setPlayers([...ps]);
 
     addLog(`Dealer: ${ps[newDealerIdx].name}`);
     addLog(`Dealt 6 cards to each player`);
@@ -373,24 +379,22 @@ export default function App() {
 
       if (phaseName === 'flop') {
         addLog('── Flop ──');
-        // Reveal 3 cards on each board
         setTopRevealed(3);
         setBottomRevealed(3);
-        await delay(500);
+        await delayMs(500);
 
-        // Deal 3 cards to each remaining player
         const result = distributeCards(ps, deck, 3, addLog);
         deck = result.deck;
         currentOwed += result.owed;
         setPlayers([...ps]);
         setUndistributedDeck([...deck]);
         setOwedCards(currentOwed);
-        await delay(300);
+        await delayMs(300);
       } else if (phaseName === 'turn') {
         addLog('── Turn ──');
         setTopRevealed(4);
         setBottomRevealed(4);
-        await delay(500);
+        await delayMs(500);
 
         const result = distributeCards(ps, deck, 3, addLog);
         deck = result.deck;
@@ -398,12 +402,12 @@ export default function App() {
         setPlayers([...ps]);
         setUndistributedDeck([...deck]);
         setOwedCards(currentOwed);
-        await delay(300);
+        await delayMs(300);
       } else if (phaseName === 'river') {
         addLog('── River ──');
         setTopRevealed(5);
         setBottomRevealed(5);
-        await delay(500);
+        await delayMs(500);
 
         const result = distributeCards(ps, deck, 3, addLog);
         deck = result.deck;
@@ -411,7 +415,7 @@ export default function App() {
         setPlayers([...ps]);
         setUndistributedDeck([...deck]);
         setOwedCards(currentOwed);
-        await delay(300);
+        await delayMs(300);
       }
 
       // Reset bets for new round (except pre-flop)
@@ -423,16 +427,14 @@ export default function App() {
         setPlayers([...ps]);
       }
 
-      // Check if betting can happen
       const canActBefore = ps.filter(p => !p.folded && !p.isAllIn && p.chips > 0);
       if (canActBefore.length <= 1) continue;
 
-      // Betting round
       const startIdx = phaseName === 'pre-flop'
         ? findNextActive(ps, bbIdx)
         : findNextActive(ps, newDealerIdx);
 
-      const result = await runBettingRound(ps, startIdx, curBet, potTotal, phaseName, topBoardCards, bottomBoardCards, deck, currentOwed);
+      const result = await runBettingRound(ps, startIdx, curBet, potTotal, phaseName, deck, currentOwed);
       potTotal = result.pot;
       curBet = result.currentBet;
       deck = result.deck;
@@ -455,19 +457,19 @@ export default function App() {
       setPlayers([...ps]);
       setPot(0);
       setPhase('showdown');
+      setCardsVisible(false);
       addLog(`🏆 ${winner.name} wins $${potTotal}!`);
       if (potTotal >= 20) setShowConfetti(true);
       setShowdownResults(null);
     } else {
-      // ESG Showdown — 3-point scoring
       setPhase('showdown');
       setTopRevealed(5);
       setBottomRevealed(5);
+      setCardsVisible(false);
       addLog('── Showdown ──');
 
-      const results = evaluateESGShowdown(nonFolded, topBoardCards, bottomBoardCards);
+      const results = evaluateESGShowdown(nonFolded, topBoard.length ? topBoard : [], bottomBoard.length ? bottomBoard : []);
 
-      // Find max points
       const maxPoints = Math.max(...results.map(r => r.totalPoints));
       const winners = results.filter(r => r.totalPoints === maxPoints);
       const winIds = winners.map(w => w.playerId);
@@ -481,7 +483,10 @@ export default function App() {
 
       for (const r of results) {
         const p = ps[r.playerId];
-        addLog(`${p.name}: Top=${r.topPoints.toFixed(1)} Bot=${r.bottomPoints.toFixed(1)} Hand=${r.handPoints.toFixed(1)} Total=${r.totalPoints.toFixed(1)}`);
+        const topName = r.topHand ? HAND_NAMES[r.topHand.rank] : '-';
+        const botName = r.bottomHand ? HAND_NAMES[r.bottomHand.rank] : '-';
+        const handName = r.handStrength ? HAND_NAMES[r.handStrength.rank] : '-';
+        addLog(`${p.name}: T:${r.topPoints.toFixed(1)}(${topName}) B:${r.bottomPoints.toFixed(1)}(${botName}) H:${r.handPoints.toFixed(1)}(${handName}) = ${r.totalPoints.toFixed(1)}pts`);
       }
       for (const w of winners) {
         addLog(`🏆 ${ps[w.playerId].name} wins $${share}! (${w.totalPoints.toFixed(1)} pts)`);
@@ -489,13 +494,13 @@ export default function App() {
       if (potTotal >= 20) setShowConfetti(true);
     }
 
-    await delay(4000);
+    await delayMs(5000);
     setShowConfetti(false);
     processingRef.current = false;
 
     const alive = ps.filter(p => p.chips > 0);
     if (alive.length >= 2) {
-      await delay(500);
+      await delayMs(500);
       runFullHand(ps, handNum + 1);
     } else {
       addLog('🎰 Game Over! Click New Game to restart.');
@@ -504,11 +509,10 @@ export default function App() {
   }
 
   /* ─── Betting Round ─── */
-  async function runBettingRound(ps, startIdx, curBet, potTotal, phaseName, topBoardCards, bottomBoardCards, deck, currentOwed) {
+  async function runBettingRound(ps, startIdx, curBet, potTotal, phaseName, deck, currentOwed) {
     const actedSet = new Set();
     let lastRaiserIdx = -1;
     let idx = startIdx;
-    const total = ps.length;
     const isRiver = phaseName === 'river';
 
     for (let safety = 0; safety < 50; safety++) {
@@ -530,27 +534,17 @@ export default function App() {
 
       setActivePlayerIndex(idx);
 
-      let action, amount;
+      // Show pass device screen, then show cards
+      await showPassDeviceScreen(player.name);
+      setCardsVisible(true);
 
-      if (player.isHuman) {
-        const humanResult = await waitForHumanAction();
-        action = humanResult.action;
-        amount = humanResult.amount;
-      } else {
-        setThinkingPlayer(idx);
-        await delay(AI_SPEED[aiSpeed] + Math.random() * 500);
-        setThinkingPlayer(-1);
+      // Wait for player action
+      const humanResult = await waitForHumanAction();
+      const action = humanResult.action;
+      const amount = humanResult.amount;
 
-        const revealedTop = topBoardCards.slice(0, phaseName === 'pre-flop' ? 0 : phaseName === 'flop' ? 3 : phaseName === 'turn' ? 4 : 5);
-        const revealedBot = bottomBoardCards.slice(0, phaseName === 'pre-flop' ? 0 : phaseName === 'flop' ? 3 : phaseName === 'turn' ? 4 : 5);
-
-        const decision = makeAIDecision(player, {
-          holeCards: player.holeCards, topBoard: revealedTop, bottomBoard: revealedBot,
-          currentBet: curBet, pot: potTotal, phase: phaseName, bigBlind: BIG_BLIND,
-        }, player.personality);
-        action = decision.action;
-        amount = decision.amount;
-      }
+      // Hide cards immediately after action
+      setCardsVisible(false);
 
       // Execute action
       if (action === 'fold') {
@@ -591,7 +585,7 @@ export default function App() {
       setCurrentBet(curBet);
       setUndistributedDeck([...deck]);
       setOwedCards(currentOwed);
-      await delay(250);
+      await delayMs(250);
 
       if (ps.filter(p => !p.folded).length <= 1) break;
 
@@ -628,11 +622,16 @@ export default function App() {
     runFullHand(players.map(p => ({ ...p })), hn);
   }
 
-  function resetGame() {
+  function resetToLobby() {
     processingRef.current = false;
     humanResolveRef.current = null;
+    passResolveRef.current = null;
     setWaitingForHuman(false);
-    setPlayers(createInitialPlayers());
+    setShowPassScreen(false);
+    setCardsVisible(false);
+    setGameStarted(false);
+    setPlayers([]);
+    setPlayerNames(['', '']);
     setUndistributedDeck([]);
     setTopBoard([]);
     setBottomBoard([]);
@@ -649,16 +648,34 @@ export default function App() {
     setWinnerIds([]);
     setShowConfetti(false);
     setPlayerActions({});
-    setThinkingPlayer(-1);
     setRaiseAmount(BIG_BLIND * 2);
     setOwedCards(0);
+  }
+
+  function startGame() {
+    const names = playerNames.filter(n => n.trim() !== '');
+    if (names.length < 2) return;
+    const ps = createPlayers(names);
+    setPlayers(ps);
+    setGameStarted(true);
+    setPhase('waiting');
+    setHandNumber(0);
   }
 
   /* ─── Keyboard shortcuts ─── */
   useEffect(() => {
     const handleKey = (e) => {
-      if (!waitingForHuman || showSettings) return;
-      const tc = currentBet - (players[0]?.currentBet || 0);
+      if (showPassScreen) {
+        if (e.key === ' ' || e.key === 'Enter') {
+          e.preventDefault();
+          handlePassReady();
+        }
+        return;
+      }
+      if (!waitingForHuman) return;
+      const ap = activePlayerIndex >= 0 ? players[activePlayerIndex] : null;
+      if (!ap) return;
+      const tc = currentBet - (ap.currentBet || 0);
       if (e.key === 'f' || e.key === 'F') handleHumanAction('fold');
       else if (e.key === 'c' || e.key === 'C') {
         if (tc > 0) handleHumanAction('call');
@@ -670,10 +687,85 @@ export default function App() {
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [currentBet, players, raiseAmount, showSettings, waitingForHuman]);
+  }, [currentBet, players, raiseAmount, waitingForHuman, showPassScreen, activePlayerIndex]);
 
   // ═══════════════════════════════════════
-  // RENDER
+  // LOBBY SCREEN
+  // ═══════════════════════════════════════
+
+  if (!gameStarted) {
+    return (
+      <div style={{
+        width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center', background: '#0d0d0d',
+        fontFamily: "'IBM Plex Mono',monospace",
+      }}>
+        <h1 style={{ fontFamily: "'Playfair Display',serif", color: '#c9a84c', fontSize: 48, letterSpacing: 4, margin: '0 0 8px' }}>
+          ESG POKER
+        </h1>
+        <p style={{ color: '#666', fontSize: 14, marginBottom: 32 }}>6-3-3-3 Variant · Hot-Seat Multiplayer</p>
+
+        <div style={{ maxWidth: 400, width: '90%' }}>
+          <div style={{ fontSize: 11, color: '#888', marginBottom: 12 }}>Players (2-7)</div>
+          {playerNames.map((name, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <span style={{ color: '#c9a84c', fontSize: 18 }}>
+                {['😎', '🎩', '🌙', '🦁', '🌸', '🎯', '⚡'][i]}
+              </span>
+              <input
+                type="text"
+                placeholder={`Player ${i + 1}`}
+                value={name}
+                onChange={e => {
+                  const n = [...playerNames];
+                  n[i] = e.target.value;
+                  setPlayerNames(n);
+                }}
+                style={{
+                  flex: 1, padding: '10px 14px', borderRadius: 8, fontSize: 14,
+                  background: '#1a1a1a', border: '1px solid #333', color: '#eee',
+                  fontFamily: "'IBM Plex Mono',monospace", outline: 'none',
+                }}
+              />
+              {i >= 2 && (
+                <button onClick={() => setPlayerNames(playerNames.filter((_, j) => j !== i))}
+                  style={{
+                    width: 32, height: 32, borderRadius: 8, border: '1px solid #333',
+                    background: '#1a1a1a', color: '#666', cursor: 'pointer', fontSize: 16,
+                  }}>×</button>
+              )}
+            </div>
+          ))}
+
+          {playerNames.length < 7 && (
+            <button onClick={() => setPlayerNames([...playerNames, ''])}
+              style={{
+                width: '100%', padding: '10px', borderRadius: 8, fontSize: 13,
+                background: '#1a1a1a', border: '1px dashed #333', color: '#666',
+                cursor: 'pointer', marginBottom: 24,
+                fontFamily: "'IBM Plex Mono',monospace",
+              }}>+ Add Player</button>
+          )}
+
+          <button onClick={startGame}
+            disabled={playerNames.filter(n => n.trim()).length < 2}
+            style={{
+              width: '100%', padding: '14px', borderRadius: 14, fontSize: 18, fontWeight: 700,
+              cursor: 'pointer',
+              background: playerNames.filter(n => n.trim()).length >= 2
+                ? 'linear-gradient(135deg,#c9a84c,#9a7b2e)' : '#333',
+              color: playerNames.filter(n => n.trim()).length >= 2 ? '#0d0d0d' : '#666',
+              border: 'none',
+              fontFamily: "'Playfair Display',serif", letterSpacing: 2,
+            }}
+          >START GAME</button>
+        </div>
+      </div>
+    );
+  }
+
+  // ═══════════════════════════════════════
+  // GAME RENDER
   // ═══════════════════════════════════════
   return (
     <div style={{
@@ -681,6 +773,39 @@ export default function App() {
       userSelect: 'none', background: '#0d0d0d', fontFamily: "'IBM Plex Mono',monospace",
     }}>
       <Confetti active={showConfetti} />
+
+      {/* ── Pass Device Overlay ── */}
+      <AnimatePresence>
+        {showPassScreen && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            style={{
+              position: 'fixed', inset: 0, zIndex: 100, display: 'flex', flexDirection: 'column',
+              alignItems: 'center', justifyContent: 'center',
+              background: 'rgba(0,0,0,0.95)', backdropFilter: 'blur(12px)',
+            }}
+          >
+            <span style={{ fontSize: 48, marginBottom: 16 }}>
+              {players[activePlayerIndex]?.emoji}
+            </span>
+            <h2 style={{ fontFamily: "'Playfair Display',serif", color: '#c9a84c', fontSize: 28, margin: '0 0 8px' }}>
+              {passScreenPlayer}'s Turn
+            </h2>
+            <p style={{ color: '#666', fontSize: 13, marginBottom: 32 }}>
+              Pass the device to {passScreenPlayer}
+            </p>
+            <button onClick={handlePassReady}
+              style={{
+                padding: '14px 40px', borderRadius: 14, fontSize: 18, fontWeight: 700,
+                cursor: 'pointer',
+                background: 'linear-gradient(135deg,#c9a84c,#9a7b2e)', color: '#0d0d0d',
+                border: 'none', fontFamily: "'Playfair Display',serif", letterSpacing: 2,
+              }}
+            >I'M READY</button>
+            <p style={{ color: '#555', fontSize: 10, marginTop: 12 }}>or press Space / Enter</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Header ── */}
       <div style={{
@@ -691,8 +816,7 @@ export default function App() {
           ESG POKER
         </h1>
         <div style={{ display: 'flex', gap: 10 }}>
-          <HeaderBtn onClick={() => setShowSettings(true)}>Settings</HeaderBtn>
-          <HeaderBtn onClick={resetGame}>New Game</HeaderBtn>
+          <HeaderBtn onClick={resetToLobby}>Lobby</HeaderBtn>
           {phase === 'waiting' && (
             <button onClick={startNewHand} style={{
               padding: '4px 16px', borderRadius: 6, fontSize: 12, fontWeight: 700,
@@ -763,10 +887,8 @@ export default function App() {
               {topBoard.map((card, i) => (
                 <motion.div key={`top-${i}`}
                   initial={{ scale: 0, opacity: 0 }}
-                  animate={i < topRevealed
-                    ? { scale: 1, opacity: 1 }
-                    : { scale: 0.8, opacity: 0.4 }}
-                  transition={{ type: 'spring', stiffness: 260, damping: 20, delay: i < 3 ? i * 0.1 : 0 }}
+                  animate={i < topRevealed ? { scale: 1, opacity: 1 } : { scale: 0.8, opacity: 0.4 }}
+                  transition={{ type: 'spring', stiffness: 260, damping: 20 }}
                 >
                   <PlayingCard card={card} faceDown={i >= topRevealed} small />
                 </motion.div>
@@ -784,10 +906,8 @@ export default function App() {
               {bottomBoard.map((card, i) => (
                 <motion.div key={`bot-${i}`}
                   initial={{ scale: 0, opacity: 0 }}
-                  animate={i < bottomRevealed
-                    ? { scale: 1, opacity: 1 }
-                    : { scale: 0.8, opacity: 0.4 }}
-                  transition={{ type: 'spring', stiffness: 260, damping: 20, delay: i < 3 ? i * 0.1 : 0 }}
+                  animate={i < bottomRevealed ? { scale: 1, opacity: 1 } : { scale: 0.8, opacity: 0.4 }}
+                  transition={{ type: 'spring', stiffness: 260, damping: 20 }}
                 >
                   <PlayingCard card={card} faceDown={i >= bottomRevealed} small />
                 </motion.div>
@@ -797,7 +917,8 @@ export default function App() {
 
           {/* ── Player seats ── */}
           {players.map((player, idx) => {
-            const pos = SEAT_POSITIONS[idx];
+            const pos = seatPositions[idx];
+            if (!pos) return null;
             const isActive = activePlayerIndex === idx;
             const isWinner = winnerIds.includes(idx);
             const isFolded = player.folded;
@@ -811,8 +932,7 @@ export default function App() {
               }}>
                 <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                   <AnimatePresence>
-                    {thinkingPlayer === idx && <ThinkingIndicator />}
-                    {thinkingPlayer !== idx && action && <ActionBadge action={action.action} amount={action.amount} />}
+                    {action && <ActionBadge action={action.action} amount={action.amount} />}
                   </AnimatePresence>
 
                   <motion.div
@@ -846,8 +966,7 @@ export default function App() {
                     <span style={{ fontSize: 10, color: '#bbb', marginBottom: 2 }}>{player.name}</span>
                     <ChipCount amount={player.chips} />
 
-                    {/* Card count for non-human players */}
-                    {!player.isHuman && !player.folded && player.holeCards.length > 0 && (
+                    {!player.folded && player.holeCards.length > 0 && (
                       <div style={{
                         fontSize: 9, color: '#888', marginTop: 4,
                         padding: '2px 6px', borderRadius: 6, background: 'rgba(50,50,50,0.4)',
@@ -856,7 +975,6 @@ export default function App() {
                       </div>
                     )}
 
-                    {/* Showdown results */}
                     {sdResult && !player.folded && (
                       <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }}
                         style={{
@@ -878,39 +996,38 @@ export default function App() {
         </div>
       </div>
 
-      {/* ── Human hole cards ── */}
-      <div style={{
-        position: 'absolute', bottom: 120, left: '50%', transform: 'translateX(-50%)',
-        zIndex: 20, display: 'flex',
-      }}>
-        <AnimatePresence>
-          {humanPlayer.holeCards.map((card, i) => (
+      {/* ── Active player's hole cards (only visible after pass screen) ── */}
+      {cardsVisible && activePlayerIndex >= 0 && players[activePlayerIndex] && (
+        <div style={{
+          position: 'absolute', bottom: 120, left: '50%', transform: 'translateX(-50%)',
+          zIndex: 20, display: 'flex',
+        }}>
+          {players[activePlayerIndex].holeCards.map((card, i) => (
             <motion.div key={cardKey(card)}
-              initial={{ x: 0, y: -200, rotateY: 180, opacity: 0 }}
-              animate={{ x: 0, y: 0, rotateY: 0, opacity: 1 }}
-              exit={{ y: 50, opacity: 0, scale: 0.8 }}
-              transition={{ type: 'spring', stiffness: 200, damping: 20, delay: i * 0.05 }}
+              initial={{ y: 40, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ type: 'spring', stiffness: 200, damping: 20, delay: i * 0.03 }}
               style={{ marginLeft: i === 0 ? 0 : -42, zIndex: i }}
             >
               <PlayingCard card={card} style={{ width: 70, height: 100 }} />
             </motion.div>
           ))}
-        </AnimatePresence>
-      </div>
+        </div>
+      )}
 
       {/* ── Card count label ── */}
-      {humanPlayer.holeCards.length > 0 && (
+      {cardsVisible && activePlayerIndex >= 0 && players[activePlayerIndex]?.holeCards.length > 0 && (
         <div style={{
           position: 'absolute', bottom: 100, left: '50%', transform: 'translateX(-50%)',
           zIndex: 20, fontSize: 10, color: '#888',
         }}>
-          {humanPlayer.holeCards.length} cards in hand
+          {players[activePlayerIndex].holeCards.length} cards · {players[activePlayerIndex].name}'s hand
         </div>
       )}
 
       {/* ── Action Bar ── */}
       <AnimatePresence>
-        {waitingForHuman && (
+        {waitingForHuman && cardsVisible && activePlayerIndex >= 0 && (
           <motion.div
             initial={{ y: 40, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -936,14 +1053,16 @@ export default function App() {
               <ActionBtn onClick={() => handleHumanAction('raise', raiseAmount)} bg="#713f12" color="#fde68a"
                 label={`RAISE $${raiseAmount}`} shortcut="Space" />
             </div>
-            <ActionBtn onClick={() => handleHumanAction('raise', humanPlayer.chips + humanPlayer.currentBet)}
-              bg="#581c87" color="#d8b4fe" label="ALL IN" />
+            {activePlayer && (
+              <ActionBtn onClick={() => handleHumanAction('raise', activePlayer.chips + activePlayer.currentBet)}
+                bg="#581c87" color="#d8b4fe" label="ALL IN" />
+            )}
           </motion.div>
         )}
       </AnimatePresence>
 
       {/* ── Game Log ── */}
-      <div style={{ position: 'absolute', top: 68, right: 16, zIndex: 20, width: 220 }}>
+      <div style={{ position: 'absolute', top: 68, right: 16, zIndex: 20, width: 260 }}>
         <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: 2, color: '#555', marginBottom: 4, paddingLeft: 4 }}>
           Game Log
         </div>
@@ -965,54 +1084,7 @@ export default function App() {
         {owedCards > 0 && ` · Owed: ${owedCards}/player`}
       </div>
 
-      {/* ── Settings Modal ── */}
-      <AnimatePresence>
-        {showSettings && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            onClick={() => setShowSettings(false)}
-            style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center',
-              justifyContent: 'center', background: 'rgba(0,0,0,0.7)' }}>
-            <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }}
-              onClick={e => e.stopPropagation()}
-              style={{ padding: 24, borderRadius: 20, maxWidth: 360, width: '90%',
-                background: '#1a1a1a', border: '1px solid rgba(201,168,76,0.2)' }}>
-              <h2 style={{ fontFamily: "'Playfair Display',serif", color: '#c9a84c', fontSize: 18, margin: '0 0 16px' }}>
-                Settings
-              </h2>
-              <div style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: 11, color: '#888', marginBottom: 8 }}>AI Speed</div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  {['fast', 'normal', 'slow'].map(s => (
-                    <button key={s} onClick={() => setAiSpeed(s)}
-                      style={{
-                        padding: '8px 16px', borderRadius: 8, fontSize: 12, fontWeight: 700,
-                        textTransform: 'capitalize', cursor: 'pointer',
-                        background: aiSpeed === s ? 'rgba(201,168,76,0.15)' : '#222',
-                        color: '#c9a84c',
-                        border: aiSpeed === s ? '1px solid #c9a84c' : '1px solid #333',
-                        fontFamily: "'IBM Plex Mono',monospace",
-                      }}>{s}</button>
-                  ))}
-                </div>
-              </div>
-              <div style={{ fontSize: 10, color: '#666', marginBottom: 8 }}>
-                Keyboard: F — Fold · C — Check/Call · Space — Raise
-              </div>
-              <div style={{ fontSize: 10, color: '#666', marginBottom: 16 }}>
-                ESG 6-3-3-3: 3 scoring categories (Top Board, Bottom Board, Hand Strength). Most points wins.
-              </div>
-              <button onClick={() => setShowSettings(false)}
-                style={{
-                  width: '100%', padding: '8px 0', borderRadius: 8, fontSize: 13, fontWeight: 700,
-                  background: '#c9a84c', color: '#0d0d0d', border: 'none', cursor: 'pointer',
-                  fontFamily: "'IBM Plex Mono',monospace",
-                }}>Close</button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* ── Welcome overlay ── */}
+      {/* ── Welcome overlay (after lobby, before first deal) ── */}
       {phase === 'waiting' && handNumber === 0 && (
         <div style={{
           position: 'absolute', inset: 0, zIndex: 40,
@@ -1020,12 +1092,14 @@ export default function App() {
         }}>
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
             style={{ textAlign: 'center' }}>
-            <h1 style={{ fontFamily: "'Playfair Display',serif", color: '#c9a84c', fontSize: 48, letterSpacing: 4, margin: '0 0 8px' }}>
-              ESG POKER
-            </h1>
-            <p style={{ color: '#666', fontSize: 14, marginBottom: 8 }}>6-3-3-3 Variant</p>
-            <p style={{ color: '#555', fontSize: 11, marginBottom: 32, maxWidth: 400 }}>
-              Two boards · Three scoring categories · Pot Limit
+            <h2 style={{ fontFamily: "'Playfair Display',serif", color: '#c9a84c', fontSize: 32, letterSpacing: 4, margin: '0 0 8px' }}>
+              Ready to Play
+            </h2>
+            <p style={{ color: '#666', fontSize: 13, marginBottom: 8 }}>
+              {players.length} players · ESG 6-3-3-3
+            </p>
+            <p style={{ color: '#555', fontSize: 11, marginBottom: 32 }}>
+              {players.map(p => p.name).join(' · ')}
             </p>
             <button onClick={startNewHand}
               style={{
@@ -1034,7 +1108,7 @@ export default function App() {
                 border: 'none', boxShadow: '0 4px 20px rgba(201,168,76,0.3)',
                 fontFamily: "'Playfair Display',serif", letterSpacing: 2,
               }}
-            >DEAL ME IN</button>
+            >DEAL</button>
           </motion.div>
         </div>
       )}
@@ -1042,7 +1116,7 @@ export default function App() {
   );
 }
 
-/* ── Small helper components ── */
+/* ── Helper components ── */
 function HeaderBtn({ onClick, children }) {
   return (
     <button onClick={onClick} style={{
