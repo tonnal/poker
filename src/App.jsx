@@ -24,6 +24,31 @@ const SEAT_POSITIONS_MAP = {
   7: [{ x: 50, y: 88 }, { x: 8, y: 65 }, { x: 8, y: 35 }, { x: 30, y: 6 }, { x: 70, y: 6 }, { x: 92, y: 35 }, { x: 92, y: 65 }],
 };
 
+/* ─── Player Avatar ─── */
+function PlayerAvatar({ size = 44, isActive = false, isFolded = false }) {
+  const border = isActive ? '#c9a84c' : '#555';
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: '50%', flexShrink: 0,
+      border: `2px solid ${border}`,
+      background: '#1a1a2e',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      overflow: 'hidden', opacity: isFolded ? 0.4 : 1,
+      boxShadow: isActive ? '0 0 10px rgba(201,168,76,0.4)' : '0 2px 6px rgba(0,0,0,0.5)',
+    }}>
+      <svg viewBox="0 0 100 100" width={size - 6} height={size - 6}>
+        <circle cx="50" cy="38" r="18" fill="#8b7355" />
+        <circle cx="50" cy="35" r="16" fill="#d4a574" />
+        <circle cx="43" cy="32" r="2.5" fill="#333" />
+        <circle cx="57" cy="32" r="2.5" fill="#333" />
+        <path d="M44 40 Q50 46 56 40" stroke="#333" strokeWidth="2" fill="none" strokeLinecap="round" />
+        <ellipse cx="50" cy="75" rx="28" ry="22" fill="#4a90d9" />
+        <ellipse cx="50" cy="68" rx="12" ry="6" fill="#d4a574" />
+      </svg>
+    </div>
+  );
+}
+
 function isRed(card) {
   return card.suit === '♥' || card.suit === '♦';
 }
@@ -454,22 +479,31 @@ export default function App() {
               }}>
                 <div style={{
                   display: 'flex', flexDirection: 'column', alignItems: 'center',
-                  padding: '4px 8px', borderRadius: 10,
-                  background: isActive ? 'rgba(201,168,76,0.15)' : 'rgba(13,13,13,0.8)',
-                  border: isActive ? '1px solid #c9a84c' : '1px solid transparent',
-                  opacity: isFolded ? 0.35 : 1, minWidth: 50,
+                  position: 'relative',
                 }}>
-                  <span style={{ fontSize: 16 }}>{player.emoji}</span>
-                  <span style={{ fontSize: 8, color: '#bbb' }}>{player.name}</span>
-                  <span style={{ fontSize: 9, color: '#c9a84c', fontWeight: 700 }}>${player.chips}</span>
+                  {/* Action badge above avatar */}
                   {action && (
-                    <span style={{
-                      fontSize: 7, padding: '1px 4px', borderRadius: 6, marginTop: 1,
-                      background: action.action === 'fold' ? '#7f1d1d' : action.action === 'raise' ? '#713f12' : '#14532d',
-                      color: action.action === 'fold' ? '#fca5a5' : action.action === 'raise' ? '#fde68a' : '#86efac',
-                    }}>{action.action === 'raise' ? `R$${action.amount}` : action.action.toUpperCase()}</span>
+                    <div style={{
+                      fontSize: 7, padding: '2px 6px', borderRadius: 6, marginBottom: 2,
+                      background: action.action === 'fold' ? '#7f1d1d' : action.action === 'raise' ? '#713f12' : action.action === 'all-in' ? '#581c87' : '#14532d',
+                      color: action.action === 'fold' ? '#fca5a5' : action.action === 'raise' ? '#fde68a' : action.action === 'all-in' ? '#d8b4fe' : '#86efac',
+                      fontWeight: 700, whiteSpace: 'nowrap',
+                    }}>{action.action === 'raise' ? `RAISE $${action.amount}` : action.action.toUpperCase()}</div>
                   )}
-                  {isWinner && <span style={{ fontSize: 8, color: '#fbbf24' }}>WIN</span>}
+                  <PlayerAvatar size={42} isActive={isActive} isFolded={isFolded} />
+                  {/* Name plate below avatar */}
+                  <div style={{
+                    background: 'rgba(13,13,13,0.9)', borderRadius: 6,
+                    padding: '2px 8px', marginTop: -6, zIndex: 1,
+                    display: 'flex', flexDirection: 'column', alignItems: 'center',
+                    border: isActive ? '1px solid rgba(201,168,76,0.4)' : '1px solid rgba(80,80,80,0.4)',
+                    minWidth: 50,
+                  }}>
+                    <span style={{ fontSize: 8, color: '#ccc', fontWeight: 500 }}>{player.name}</span>
+                    <span style={{ fontSize: 10, color: isWinner ? '#fbbf24' : '#4dd4ac', fontWeight: 700 }}>
+                      {isWinner ? 'WIN' : `$${player.chips}`}
+                    </span>
+                  </div>
                 </div>
               </div>
             );
