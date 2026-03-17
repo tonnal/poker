@@ -24,7 +24,7 @@ function PlayingCard({ card, faceDown = false, small = false, style = {} }) {
   const w = small ? 48 : 70;
   const h = small ? 67 : 100;
   const rankSize = small ? 15 : 20;
-  const suitSize = small ? 11 : 14;
+  const suitSize = small ? 16 : 22;
   const pad = small ? 5 : 8;
 
   if (faceDown) {
