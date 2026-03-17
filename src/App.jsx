@@ -718,26 +718,6 @@ export default function App() {
                     <span style={{ fontSize: 10, color: '#bbb', marginBottom: 2 }}>{player.name}</span>
                     <ChipCount amount={player.chips} className="" />
 
-                    {/* AI hole cards */}
-                    {!player.isHuman && player.holeCards.length > 0 && !player.folded && (
-                      <div style={{ display: 'flex', alignItems: 'flex-end', marginTop: 4 }}>
-                        {phase === 'showdown' ? (
-                          player.holeCards.map((c, ci) => (
-                              <motion.div key={cardKey(c)} initial={{ rotateY: 180 }} animate={{ rotateY: 0 }}
-                                transition={{ type: 'spring', stiffness: 200, damping: 20 }}
-                                style={{ marginLeft: ci === 0 ? 0 : -28, zIndex: ci }}>
-                                <PlayingCard card={c} small />
-                              </motion.div>
-                          ))
-                        ) : (
-                          player.holeCards.map((_, ci) => (
-                              <div key={ci} style={{ marginLeft: ci === 0 ? 0 : -28, zIndex: ci }}>
-                                <PlayingCard faceDown small />
-                              </div>
-                          ))
-                        )}
-                      </div>
-                    )}
 
                     {/* Showdown hand name */}
                     {sdResult && !player.folded && (
